@@ -78,13 +78,13 @@ Dev Tunnels allow you to securely expose your local development server to the in
     echo "SCIM Port: $SCIM_PORT"
 
     # Start hosting (run in background)
-    devtunnel host $TUNNEL_ID
+    devtunnel host $TUNNEL_ID &
     echo "Tunnel is now hosting in background"
 
     # Test the tunnel immediately
-    sleep 3
+    sleep 5
     echo "Testing tunnel connectivity..."
-    TUNNEL_TEST=$(curl -s "$TUNNEL_URL/api/auth/token" \
+    TUNNEL_TEST=$(curl -s "${TUNNEL_URL}api/auth/token" \
     -H "Content-Type: application/json" \
     -d '{"clientId": "scim_client","clientSecret": "scim_secret","grantType": "client_credentials"}')
 
@@ -94,21 +94,13 @@ Dev Tunnels allow you to securely expose your local development server to the in
       echo "❌ Tunnel test failed. Check if devtunnel host is running."
       echo "Response: $TUNNEL_TEST"
     fi
-   ```
 
-
-   ```
-
-
-4. **Set Environment Variable:**
-   ```bash
-   # Get URL from VS Code Ports tab and set it
-   export TUNNEL_URL="https://your-tunnel-url.devtunnels.ms"
    
    # Test the tunnel
-   curl -s "$TUNNEL_URL/api/auth/token" \
+   curl -s "${TUNNEL_URL}api/auth/token" \
      -H "Content-Type: application/json" \
      -d '{"clientId": "scim_client","clientSecret": "scim_secret","grantType": "client_credentials"}' | jq '.'
+     echo $TUNNEL_URL
    ```
 
 ## Key Differences Between Methods
