@@ -18,6 +18,16 @@ namespace ScimServiceProvider.Controllers
         {
             _userService = userService;
         }
+        
+        // Helper method to get the customer ID from context
+        private string GetCustomerId()
+        {
+            if (HttpContext.Items.TryGetValue("CustomerId", out var customerId) && customerId != null)
+            {
+                return customerId.ToString() ?? throw new InvalidOperationException("Customer ID is null");
+            }
+            throw new InvalidOperationException("Customer context not available");
+        }
 
         [HttpGet]
         public async Task<ActionResult<ScimListResponse<ScimUser>>> GetUsers(
@@ -46,8 +56,13 @@ namespace ScimServiceProvider.Controllers
 
             try
             {
-                var result = await _userService.GetUsersAsync(startIndex, count, filter);
+                string customerId = GetCustomerId();
+                var result = await _userService.GetUsersAsync(customerId, startIndex, count, filter);
                 return Ok(result);
+            }
+            catch (InvalidOperationException iex)
+            {
+                return BadRequest(new ScimError { Status = 400, Detail = iex.Message });
             }
             catch (Exception ex)
             {
@@ -64,7 +79,8 @@ namespace ScimServiceProvider.Controllers
         {
             try
             {
-                var user = await _userService.GetUserAsync(id);
+                string customerId = GetCustomerId();
+                var user = await _userService.GetUserAsync(id, customerId);
                 if (user == null)
                 {
                     return NotFound(new ScimError 
@@ -75,6 +91,10 @@ namespace ScimServiceProvider.Controllers
                 }
 
                 return Ok(user);
+            }
+            catch (InvalidOperationException iex)
+            {
+                return BadRequest(new ScimError { Status = 400, Detail = iex.Message });
             }
             catch (Exception ex)
             {
@@ -115,8 +135,11 @@ namespace ScimServiceProvider.Controllers
                     });
                 }
 
+                // Get customer ID from context
+                string customerId = GetCustomerId();
+            
                 // Check if user already exists
-                var existingUser = await _userService.GetUserByUsernameAsync(user.UserName);
+                var existingUser = await _userService.GetUserByUsernameAsync(user.UserName, customerId);
                 if (existingUser != null)
                 {
                     return Conflict(new ScimError
@@ -126,7 +149,7 @@ namespace ScimServiceProvider.Controllers
                     });
                 }
 
-                var createdUser = await _userService.CreateUserAsync(user);
+                var createdUser = await _userService.CreateUserAsync(user, customerId);
                 return CreatedAtAction(nameof(GetUser), new { id = createdUser.Id }, createdUser);
             }
             catch (Exception ex)
@@ -154,7 +177,9 @@ namespace ScimServiceProvider.Controllers
                     });
                 }
 
-                var updatedUser = await _userService.UpdateUserAsync(id, user);
+                string customerId = GetCustomerId();
+                
+                var updatedUser = await _userService.UpdateUserAsync(id, user, customerId);
                 if (updatedUser == null)
                 {
                     return NotFound(new ScimError 
@@ -181,7 +206,9 @@ namespace ScimServiceProvider.Controllers
         {
             try
             {
-                var patchedUser = await _userService.PatchUserAsync(id, patchRequest);
+                string customerId = GetCustomerId();
+                
+                var patchedUser = await _userService.PatchUserAsync(id, patchRequest, customerId);
                 if (patchedUser == null)
                 {
                     return NotFound(new ScimError 
@@ -208,7 +235,9 @@ namespace ScimServiceProvider.Controllers
         {
             try
             {
-                var deleted = await _userService.DeleteUserAsync(id);
+                string customerId = GetCustomerId();
+                
+                var deleted = await _userService.DeleteUserAsync(id, customerId);
                 if (!deleted)
                 {
                     return NotFound(new ScimError 

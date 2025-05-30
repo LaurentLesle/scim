@@ -14,14 +14,17 @@ namespace ScimServiceProvider.Services
             _context = context;
         }
 
-        public async Task<ScimGroup?> GetGroupAsync(string id)
+        public async Task<ScimGroup?> GetGroupAsync(string id, string customerId)
         {
-            return await _context.Groups.FindAsync(id);
+            return await _context.Groups
+                .FirstOrDefaultAsync(g => g.Id == id && g.CustomerId == customerId);
         }
 
-        public async Task<ScimListResponse<ScimGroup>> GetGroupsAsync(int startIndex = 1, int count = 10, string? filter = null)
+        public async Task<ScimListResponse<ScimGroup>> GetGroupsAsync(string customerId, int startIndex = 1, int count = 10, string? filter = null)
         {
-            var query = _context.Groups.AsQueryable();
+            var query = _context.Groups
+                .Where(g => g.CustomerId == customerId)
+                .AsQueryable();
 
             // Apply filter if provided
             if (!string.IsNullOrEmpty(filter))
@@ -44,8 +47,11 @@ namespace ScimServiceProvider.Services
             };
         }
 
-        public async Task<ScimGroup> CreateGroupAsync(ScimGroup group)
+        public async Task<ScimGroup> CreateGroupAsync(ScimGroup group, string customerId)
         {
+            // Set customer ID
+            group.CustomerId = customerId;
+        
             group.Id = Guid.NewGuid().ToString();
             group.Created = DateTime.UtcNow;
             group.LastModified = DateTime.UtcNow;
@@ -59,9 +65,11 @@ namespace ScimServiceProvider.Services
             return group;
         }
 
-        public async Task<ScimGroup?> UpdateGroupAsync(string id, ScimGroup group)
+        public async Task<ScimGroup?> UpdateGroupAsync(string id, ScimGroup group, string customerId)
         {
-            var existingGroup = await _context.Groups.FindAsync(id);
+            var existingGroup = await _context.Groups
+                .FirstOrDefaultAsync(g => g.Id == id && g.CustomerId == customerId);
+                
             if (existingGroup == null)
                 return null;
 
@@ -74,9 +82,11 @@ namespace ScimServiceProvider.Services
             return existingGroup;
         }
 
-        public async Task<ScimGroup?> PatchGroupAsync(string id, ScimPatchRequest patchRequest)
+        public async Task<ScimGroup?> PatchGroupAsync(string id, ScimPatchRequest patchRequest, string customerId)
         {
-            var group = await _context.Groups.FindAsync(id);
+            var group = await _context.Groups
+                .FirstOrDefaultAsync(g => g.Id == id && g.CustomerId == customerId);
+                
             if (group == null)
                 return null;
 
@@ -92,9 +102,11 @@ namespace ScimServiceProvider.Services
             return group;
         }
 
-        public async Task<bool> DeleteGroupAsync(string id)
+        public async Task<bool> DeleteGroupAsync(string id, string customerId)
         {
-            var group = await _context.Groups.FindAsync(id);
+            var group = await _context.Groups
+                .FirstOrDefaultAsync(g => g.Id == id && g.CustomerId == customerId);
+                
             if (group == null)
                 return false;
 

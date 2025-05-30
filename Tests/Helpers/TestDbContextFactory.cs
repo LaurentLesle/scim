@@ -17,8 +17,18 @@ namespace ScimServiceProvider.Tests.Helpers
             var options = new DbContextOptionsBuilder<ScimDbContext>()
                 .UseInMemoryDatabase(databaseName ?? Guid.NewGuid().ToString())
                 .Options;
-
-            return new ScimDbContext(options);
+            
+            var context = new ScimDbContext(options);
+            
+            // Add default test customer
+            var customer = ScimTestDataGenerator.GenerateCustomer(
+                id: ScimTestDataGenerator.DefaultCustomerId, 
+                tenantId: "default-tenant");
+            
+            context.Customers.Add(customer);
+            context.SaveChanges();
+            
+            return context;
         }
 
         /// <summary>
@@ -26,13 +36,13 @@ namespace ScimServiceProvider.Tests.Helpers
         /// </summary>
         public static async Task SeedTestDataAsync(ScimDbContext context, int userCount = 5, int groupCount = 2)
         {
-            // Generate test users
-            var users = ScimTestDataGenerator.GenerateUsers(userCount, mixActiveStatus: true);
+            // Generate test users with default customer ID
+            var users = ScimTestDataGenerator.GenerateUsers(userCount, mixActiveStatus: true, customerId: ScimTestDataGenerator.DefaultCustomerId);
             context.Users.AddRange(users);
             await context.SaveChangesAsync();
 
             // Generate test groups with some of the users as members
-            var groups = ScimTestDataGenerator.GenerateGroups(groupCount, users.Take(3).ToList());
+            var groups = ScimTestDataGenerator.GenerateGroups(groupCount, users.Take(3).ToList(), customerId: ScimTestDataGenerator.DefaultCustomerId);
             context.Groups.AddRange(groups);
             await context.SaveChangesAsync();
         }

@@ -18,6 +18,9 @@ namespace ScimServiceProvider.Tests.Integration
 {
     public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     {
+        // Define test tenant ID to match the one used in tests
+        public const string TestTenantId = "test-tenant-id";
+        
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             builder.UseContentRoot("/workspaces/scim");
@@ -33,7 +36,39 @@ namespace ScimServiceProvider.Tests.Integration
                 {
                     options.UseInMemoryDatabase("TestDb");
                 });
+                
+                // Create a scope to initialize the database with test data
+                var sp = services.BuildServiceProvider();
+                using var scope = sp.CreateScope();
+                var scopedServices = scope.ServiceProvider;
+                var db = scopedServices.GetRequiredService<ScimDbContext>();
+                
+                // Ensure database is created
+                db.Database.EnsureCreated();
+                
+                // Add test customer for tenant
+                InitializeTestData(db);
             });
+        }
+        
+    private void InitializeTestData(ScimDbContext dbContext)
+    {
+        // Create test customer if it doesn't exist
+        if (!dbContext.Customers.Any(c => c.TenantId == TestTenantId))
+        {
+            var testCustomer = new Customer
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = "Test Customer",
+                TenantId = TestTenantId,
+                IsActive = true,
+                Created = DateTime.UtcNow,
+                LastModified = DateTime.UtcNow
+            };
+                
+                dbContext.Customers.Add(testCustomer);
+                dbContext.SaveChanges();
+            }
         }
     }
 
@@ -42,11 +77,14 @@ namespace ScimServiceProvider.Tests.Integration
         private readonly CustomWebApplicationFactory _factory;
         private readonly HttpClient _client;
         private string? _authToken;
-
-        public ScimApiIntegrationTests(CustomWebApplicationFactory factory)
-        {
-            _factory = factory;
-            _client = _factory.CreateClient();
+        
+    public ScimApiIntegrationTests(CustomWebApplicationFactory factory)
+    {
+        _factory = factory;
+        _client = _factory.CreateClient();
+        
+        // Add tenant ID header to all requests
+        _client.DefaultRequestHeaders.Add("X-Tenant-ID", CustomWebApplicationFactory.TestTenantId);
         }
 
         private async Task<string> GetAuthTokenAsync()

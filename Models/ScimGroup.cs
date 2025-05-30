@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace ScimServiceProvider.Models
 {
@@ -9,6 +10,15 @@ namespace ScimServiceProvider.Models
         public List<string> Schemas { get; set; } = new() { "urn:ietf:params:scim:schemas:core:2.0:Group" };
         public string? ExternalId { get; set; }
         public string DisplayName { get; set; } = string.Empty;
+        
+        // Customer relationship
+        [Required]
+        public string CustomerId { get; set; } = string.Empty;
+        
+        [ForeignKey("CustomerId")]
+        [System.Text.Json.Serialization.JsonIgnore]
+        [Newtonsoft.Json.JsonIgnore]
+        public virtual Customer? Customer { get; set; }
         public List<GroupMember> Members { get; set; } = new();
         public ScimMeta Meta { get; set; } = new();
         public DateTime Created { get; set; } = DateTime.UtcNow;

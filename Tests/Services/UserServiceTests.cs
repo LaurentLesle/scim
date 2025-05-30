@@ -11,6 +11,7 @@ namespace ScimServiceProvider.Tests.Services
     {
         private readonly UserService _userService;
         private readonly Data.ScimDbContext _context;
+        private readonly string _testCustomerId = ScimTestDataGenerator.DefaultCustomerId;
 
         public UserServiceTests()
         {
@@ -32,7 +33,7 @@ namespace ScimServiceProvider.Tests.Services
             await _context.SaveChangesAsync();
 
             // Act
-            var result = await _userService.GetUserAsync(testUser.Id!);
+            var result = await _userService.GetUserAsync(testUser.Id!, ScimTestDataGenerator.DefaultCustomerId);
 
             // Assert
             result.Should().NotBeNull();
@@ -48,7 +49,7 @@ namespace ScimServiceProvider.Tests.Services
             var invalidId = Guid.NewGuid().ToString();
 
             // Act
-            var result = await _userService.GetUserAsync(invalidId);
+            var result = await _userService.GetUserAsync(invalidId, ScimTestDataGenerator.DefaultCustomerId);
 
             // Assert
             result.Should().BeNull();
@@ -63,7 +64,7 @@ namespace ScimServiceProvider.Tests.Services
             await _context.SaveChangesAsync();
 
             // Act
-            var result = await _userService.GetUserByUsernameAsync("test@example.com");
+            var result = await _userService.GetUserByUsernameAsync("test@example.com", _testCustomerId);
 
             // Assert
             result.Should().NotBeNull();
@@ -77,7 +78,7 @@ namespace ScimServiceProvider.Tests.Services
             var invalidUsername = "nonexistent@example.com";
 
             // Act
-            var result = await _userService.GetUserByUsernameAsync(invalidUsername);
+            var result = await _userService.GetUserByUsernameAsync(invalidUsername, _testCustomerId);
 
             // Assert
             result.Should().BeNull();
@@ -92,7 +93,7 @@ namespace ScimServiceProvider.Tests.Services
             await _context.SaveChangesAsync();
 
             // Act
-            var result = await _userService.GetUsersAsync();
+            var result = await _userService.GetUsersAsync(_testCustomerId);
 
             // Assert
             result.Should().NotBeNull();
@@ -111,7 +112,7 @@ namespace ScimServiceProvider.Tests.Services
             await _context.SaveChangesAsync();
 
             // Act
-            var result = await _userService.GetUsersAsync(startIndex: 11, count: 5);
+            var result = await _userService.GetUsersAsync(_testCustomerId, startIndex: 11, count: 5);
 
             // Assert
             result.Should().NotBeNull();
@@ -132,7 +133,7 @@ namespace ScimServiceProvider.Tests.Services
             await _context.SaveChangesAsync();
 
             // Act
-            var result = await _userService.GetUsersAsync(filter: "userName eq \"john.doe@example.com\"");
+            var result = await _userService.GetUsersAsync(_testCustomerId, filter: "userName eq \"john.doe@example.com\"");
 
             // Assert
             result.Should().NotBeNull();
@@ -149,7 +150,7 @@ namespace ScimServiceProvider.Tests.Services
             newUser.Id = null; // Should be generated
 
             // Act
-            var result = await _userService.CreateUserAsync(newUser);
+            var result = await _userService.CreateUserAsync(newUser, _testCustomerId);
 
             // Assert
             result.Should().NotBeNull();
@@ -178,7 +179,7 @@ namespace ScimServiceProvider.Tests.Services
             updatedUser.DisplayName = "Updated Name";
 
             // Act
-            var result = await _userService.UpdateUserAsync(existingUser.Id!, updatedUser);
+            var result = await _userService.UpdateUserAsync(existingUser.Id!, updatedUser, _testCustomerId);
 
             // Assert
             result.Should().NotBeNull();
@@ -199,7 +200,7 @@ namespace ScimServiceProvider.Tests.Services
             var updatedUser = ScimTestDataGenerator.GenerateUser();
 
             // Act
-            var result = await _userService.UpdateUserAsync(invalidId, updatedUser);
+            var result = await _userService.UpdateUserAsync(invalidId, updatedUser, _testCustomerId);
 
             // Assert
             result.Should().BeNull();
@@ -223,7 +224,7 @@ namespace ScimServiceProvider.Tests.Services
             };
 
             // Act
-            var result = await _userService.PatchUserAsync(existingUser.Id!, patchRequest);
+            var result = await _userService.PatchUserAsync(existingUser.Id!, patchRequest, _testCustomerId);
 
             // Assert
             result.Should().NotBeNull();
@@ -253,7 +254,7 @@ namespace ScimServiceProvider.Tests.Services
             };
 
             // Act
-            var result = await _userService.PatchUserAsync(existingUser.Id!, patchRequest);
+            var result = await _userService.PatchUserAsync(existingUser.Id!, patchRequest, _testCustomerId);
 
             // Assert
             result.Should().NotBeNull();
@@ -268,7 +269,7 @@ namespace ScimServiceProvider.Tests.Services
             var patchRequest = ScimTestDataGenerator.GeneratePatchRequest();
 
             // Act
-            var result = await _userService.PatchUserAsync(invalidId, patchRequest);
+            var result = await _userService.PatchUserAsync(invalidId, patchRequest, _testCustomerId);
 
             // Assert
             result.Should().BeNull();
@@ -283,7 +284,7 @@ namespace ScimServiceProvider.Tests.Services
             await _context.SaveChangesAsync();
 
             // Act
-            var result = await _userService.DeleteUserAsync(existingUser.Id!);
+            var result = await _userService.DeleteUserAsync(existingUser.Id!, _testCustomerId);
 
             // Assert
             result.Should().BeTrue();
@@ -300,7 +301,7 @@ namespace ScimServiceProvider.Tests.Services
             var invalidId = Guid.NewGuid().ToString();
 
             // Act
-            var result = await _userService.DeleteUserAsync(invalidId);
+            var result = await _userService.DeleteUserAsync(invalidId, _testCustomerId);
 
             // Assert
             result.Should().BeFalse();
@@ -321,7 +322,7 @@ namespace ScimServiceProvider.Tests.Services
             await _context.SaveChangesAsync();
 
             // Act
-            var result = await _userService.GetUsersAsync(filter: filter);
+            var result = await _userService.GetUsersAsync(_testCustomerId, filter: filter);
 
             // Assert
             result.Should().NotBeNull();

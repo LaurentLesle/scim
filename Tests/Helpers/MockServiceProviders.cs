@@ -18,18 +18,18 @@ namespace ScimServiceProvider.Tests.Helpers
             var users = testUsers ?? ScimTestDataGenerator.GenerateUsers(5);
 
             // Setup GetUserAsync
-            mockService.Setup(s => s.GetUserAsync(It.IsAny<string>()))
-                .ReturnsAsync((string id) => users.FirstOrDefault(u => u.Id == id));
+            mockService.Setup(s => s.GetUserAsync(It.IsAny<string>(), It.IsAny<string>()))
+                .ReturnsAsync((string id, string customerId) => users.FirstOrDefault(u => u.Id == id && u.CustomerId == customerId));
 
             // Setup GetUserByUsernameAsync
-            mockService.Setup(s => s.GetUserByUsernameAsync(It.IsAny<string>()))
-                .ReturnsAsync((string username) => users.FirstOrDefault(u => u.UserName == username));
+            mockService.Setup(s => s.GetUserByUsernameAsync(It.IsAny<string>(), It.IsAny<string>()))
+                .ReturnsAsync((string username, string customerId) => users.FirstOrDefault(u => u.UserName == username && u.CustomerId == customerId));
 
             // Setup GetUsersAsync
-            mockService.Setup(s => s.GetUsersAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>()))
-                .ReturnsAsync((int startIndex, int count, string? filter) =>
+            mockService.Setup(s => s.GetUsersAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>()))
+                .ReturnsAsync((string customerId, int startIndex, int count, string? filter) =>
                 {
-                    var filteredUsers = users.AsQueryable();
+                    var filteredUsers = users.Where(u => u.CustomerId == customerId).AsQueryable();
 
                     // Apply simple filter if provided
                     if (!string.IsNullOrEmpty(filter))
@@ -52,10 +52,11 @@ namespace ScimServiceProvider.Tests.Helpers
                 });
 
             // Setup CreateUserAsync
-            mockService.Setup(s => s.CreateUserAsync(It.IsAny<ScimUser>()))
-                .ReturnsAsync((ScimUser user) =>
+            mockService.Setup(s => s.CreateUserAsync(It.IsAny<ScimUser>(), It.IsAny<string>()))
+                .ReturnsAsync((ScimUser user, string customerId) =>
                 {
                     user.Id = Guid.NewGuid().ToString();
+                    user.CustomerId = customerId;
                     user.Meta = new ScimMeta
                     {
                         ResourceType = "User",
@@ -69,10 +70,10 @@ namespace ScimServiceProvider.Tests.Helpers
                 });
 
             // Setup UpdateUserAsync
-            mockService.Setup(s => s.UpdateUserAsync(It.IsAny<string>(), It.IsAny<ScimUser>()))
-                .ReturnsAsync((string id, ScimUser updatedUser) =>
+            mockService.Setup(s => s.UpdateUserAsync(It.IsAny<string>(), It.IsAny<ScimUser>(), It.IsAny<string>()))
+                .ReturnsAsync((string id, ScimUser updatedUser, string customerId) =>
                 {
-                    var existingUser = users.FirstOrDefault(u => u.Id == id);
+                    var existingUser = users.FirstOrDefault(u => u.Id == id && u.CustomerId == customerId);
                     if (existingUser == null) return null;
 
                     // Update properties
@@ -93,10 +94,10 @@ namespace ScimServiceProvider.Tests.Helpers
                 });
 
             // Setup PatchUserAsync
-            mockService.Setup(s => s.PatchUserAsync(It.IsAny<string>(), It.IsAny<ScimPatchRequest>()))
-                .ReturnsAsync((string id, ScimPatchRequest patchRequest) =>
+            mockService.Setup(s => s.PatchUserAsync(It.IsAny<string>(), It.IsAny<ScimPatchRequest>(), It.IsAny<string>()))
+                .ReturnsAsync((string id, ScimPatchRequest patchRequest, string customerId) =>
                 {
-                    var user = users.FirstOrDefault(u => u.Id == id);
+                    var user = users.FirstOrDefault(u => u.Id == id && u.CustomerId == customerId);
                     if (user == null) return null;
 
                     // Apply patch operations
@@ -121,10 +122,10 @@ namespace ScimServiceProvider.Tests.Helpers
                 });
 
             // Setup DeleteUserAsync
-            mockService.Setup(s => s.DeleteUserAsync(It.IsAny<string>()))
-                .ReturnsAsync((string id) =>
+            mockService.Setup(s => s.DeleteUserAsync(It.IsAny<string>(), It.IsAny<string>()))
+                .ReturnsAsync((string id, string customerId) =>
                 {
-                    var user = users.FirstOrDefault(u => u.Id == id);
+                    var user = users.FirstOrDefault(u => u.Id == id && u.CustomerId == customerId);
                     if (user == null) return false;
                     
                     users.Remove(user);
@@ -143,14 +144,14 @@ namespace ScimServiceProvider.Tests.Helpers
             var groups = testGroups ?? ScimTestDataGenerator.GenerateGroups(3, testUsers);
 
             // Setup GetGroupAsync
-            mockService.Setup(s => s.GetGroupAsync(It.IsAny<string>()))
-                .ReturnsAsync((string id) => groups.FirstOrDefault(g => g.Id == id));
+            mockService.Setup(s => s.GetGroupAsync(It.IsAny<string>(), It.IsAny<string>()))
+                .ReturnsAsync((string id, string customerId) => groups.FirstOrDefault(g => g.Id == id && g.CustomerId == customerId));
 
             // Setup GetGroupsAsync
-            mockService.Setup(s => s.GetGroupsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>()))
-                .ReturnsAsync((int startIndex, int count, string? filter) =>
+            mockService.Setup(s => s.GetGroupsAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>()))
+                .ReturnsAsync((string customerId, int startIndex, int count, string? filter) =>
                 {
-                    var filteredGroups = groups.AsQueryable();
+                    var filteredGroups = groups.Where(g => g.CustomerId == customerId).AsQueryable();
 
                     // Apply simple filter if provided
                     if (!string.IsNullOrEmpty(filter))
@@ -172,10 +173,11 @@ namespace ScimServiceProvider.Tests.Helpers
                 });
 
             // Setup CreateGroupAsync
-            mockService.Setup(s => s.CreateGroupAsync(It.IsAny<ScimGroup>()))
-                .ReturnsAsync((ScimGroup group) =>
+            mockService.Setup(s => s.CreateGroupAsync(It.IsAny<ScimGroup>(), It.IsAny<string>()))
+                .ReturnsAsync((ScimGroup group, string customerId) =>
                 {
                     group.Id = Guid.NewGuid().ToString();
+                    group.CustomerId = customerId;
                     group.Meta = new ScimMeta
                     {
                         ResourceType = "Group",
@@ -189,10 +191,10 @@ namespace ScimServiceProvider.Tests.Helpers
                 });
 
             // Setup UpdateGroupAsync
-            mockService.Setup(s => s.UpdateGroupAsync(It.IsAny<string>(), It.IsAny<ScimGroup>()))
-                .ReturnsAsync((string id, ScimGroup updatedGroup) =>
+            mockService.Setup(s => s.UpdateGroupAsync(It.IsAny<string>(), It.IsAny<ScimGroup>(), It.IsAny<string>()))
+                .ReturnsAsync((string id, ScimGroup updatedGroup, string customerId) =>
                 {
-                    var existingGroup = groups.FirstOrDefault(g => g.Id == id);
+                    var existingGroup = groups.FirstOrDefault(g => g.Id == id && g.CustomerId == customerId);
                     if (existingGroup == null) return null;
 
                     existingGroup.DisplayName = updatedGroup.DisplayName;
@@ -207,10 +209,10 @@ namespace ScimServiceProvider.Tests.Helpers
                 });
 
             // Setup PatchGroupAsync
-            mockService.Setup(s => s.PatchGroupAsync(It.IsAny<string>(), It.IsAny<ScimPatchRequest>()))
-                .ReturnsAsync((string id, ScimPatchRequest patchRequest) =>
+            mockService.Setup(s => s.PatchGroupAsync(It.IsAny<string>(), It.IsAny<ScimPatchRequest>(), It.IsAny<string>()))
+                .ReturnsAsync((string id, ScimPatchRequest patchRequest, string customerId) =>
                 {
-                    var group = groups.FirstOrDefault(g => g.Id == id);
+                    var group = groups.FirstOrDefault(g => g.Id == id && g.CustomerId == customerId);
                     if (group == null) return null;
 
                     // Apply patch operations
@@ -231,10 +233,10 @@ namespace ScimServiceProvider.Tests.Helpers
                 });
 
             // Setup DeleteGroupAsync
-            mockService.Setup(s => s.DeleteGroupAsync(It.IsAny<string>()))
-                .ReturnsAsync((string id) =>
+            mockService.Setup(s => s.DeleteGroupAsync(It.IsAny<string>(), It.IsAny<string>()))
+                .ReturnsAsync((string id, string customerId) =>
                 {
-                    var group = groups.FirstOrDefault(g => g.Id == id);
+                    var group = groups.FirstOrDefault(g => g.Id == id && g.CustomerId == customerId);
                     if (group == null) return false;
                     
                     groups.Remove(group);

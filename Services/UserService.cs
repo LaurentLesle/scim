@@ -14,19 +14,23 @@ namespace ScimServiceProvider.Services
             _context = context;
         }
 
-        public async Task<ScimUser?> GetUserAsync(string id)
+        public async Task<ScimUser?> GetUserAsync(string id, string customerId)
         {
-            return await _context.Users.FindAsync(id);
+            return await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == id && u.CustomerId == customerId);
         }
 
-        public async Task<ScimUser?> GetUserByUsernameAsync(string username)
+        public async Task<ScimUser?> GetUserByUsernameAsync(string username, string customerId)
         {
-            return await _context.Users.FirstOrDefaultAsync(u => u.UserName == username);
+            return await _context.Users
+                .FirstOrDefaultAsync(u => u.UserName == username && u.CustomerId == customerId);
         }
 
-        public async Task<ScimListResponse<ScimUser>> GetUsersAsync(int startIndex = 1, int count = 10, string? filter = null)
+        public async Task<ScimListResponse<ScimUser>> GetUsersAsync(string customerId, int startIndex = 1, int count = 10, string? filter = null)
         {
-            var query = _context.Users.AsQueryable();
+            var query = _context.Users
+                .Where(u => u.CustomerId == customerId)
+                .AsQueryable();
 
             // Apply filter if provided
             if (!string.IsNullOrEmpty(filter))
@@ -49,8 +53,11 @@ namespace ScimServiceProvider.Services
             };
         }
 
-        public async Task<ScimUser> CreateUserAsync(ScimUser user)
+        public async Task<ScimUser> CreateUserAsync(ScimUser user, string customerId)
         {
+            // Set customer ID
+            user.CustomerId = customerId;
+            
             user.Id = Guid.NewGuid().ToString();
             user.Created = DateTime.UtcNow;
             user.LastModified = DateTime.UtcNow;
@@ -64,9 +71,11 @@ namespace ScimServiceProvider.Services
             return user;
         }
 
-        public async Task<ScimUser?> UpdateUserAsync(string id, ScimUser user)
+        public async Task<ScimUser?> UpdateUserAsync(string id, ScimUser user, string customerId)
         {
-            var existingUser = await _context.Users.FindAsync(id);
+            var existingUser = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == id && u.CustomerId == customerId);
+                
             if (existingUser == null)
                 return null;
 
@@ -93,9 +102,11 @@ namespace ScimServiceProvider.Services
             return existingUser;
         }
 
-        public async Task<ScimUser?> PatchUserAsync(string id, ScimPatchRequest patchRequest)
+        public async Task<ScimUser?> PatchUserAsync(string id, ScimPatchRequest patchRequest, string customerId)
         {
-            var user = await _context.Users.FindAsync(id);
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == id && u.CustomerId == customerId);
+                
             if (user == null)
                 return null;
 
@@ -111,9 +122,11 @@ namespace ScimServiceProvider.Services
             return user;
         }
 
-        public async Task<bool> DeleteUserAsync(string id)
+        public async Task<bool> DeleteUserAsync(string id, string customerId)
         {
-            var user = await _context.Users.FindAsync(id);
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == id && u.CustomerId == customerId);
+                
             if (user == null)
                 return false;
 

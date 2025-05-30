@@ -9,11 +9,33 @@ namespace ScimServiceProvider.Tests.Helpers
     public static class ScimTestDataGenerator
     {
         private static readonly Faker Faker = new();
+        
+        /// <summary>
+        /// Default test customer ID for testing
+        /// </summary>
+        public const string DefaultCustomerId = "test-customer-id";
+
+        /// <summary>
+        /// Generates a fake customer for testing
+        /// </summary>
+        public static Customer GenerateCustomer(string? id = null, string? tenantId = null)
+        {
+            var customerFaker = new Faker<Customer>()
+                .RuleFor(c => c.Id, f => id ?? f.Random.Guid().ToString())
+                .RuleFor(c => c.Name, f => f.Company.CompanyName())
+                .RuleFor(c => c.TenantId, f => tenantId ?? f.Random.AlphaNumeric(10))
+                .RuleFor(c => c.Description, f => f.Lorem.Sentence())
+                .RuleFor(c => c.IsActive, true)
+                .RuleFor(c => c.Created, DateTime.UtcNow)
+                .RuleFor(c => c.LastModified, DateTime.UtcNow);
+
+            return customerFaker.Generate();
+        }
 
         /// <summary>
         /// Generates a fake SCIM user with realistic data
         /// </summary>
-        public static ScimUser GenerateUser(string? id = null, string? userName = null, bool active = true)
+        public static ScimUser GenerateUser(string? id = null, string? userName = null, bool active = true, string? customerId = null)
         {
             var userFaker = new Faker<ScimUser>()
                 .RuleFor(u => u.Id, f => id ?? f.Random.Guid().ToString())
@@ -21,6 +43,7 @@ namespace ScimServiceProvider.Tests.Helpers
                 .RuleFor(u => u.DisplayName, f => f.Name.FullName())
                 .RuleFor(u => u.Active, active)
                 .RuleFor(u => u.ExternalId, f => f.Random.AlphaNumeric(10))
+                .RuleFor(u => u.CustomerId, f => customerId ?? DefaultCustomerId)
                 .RuleFor(u => u.Name, (f, u) => new Name
                 {
                     GivenName = f.Name.FirstName(),
@@ -70,13 +93,13 @@ namespace ScimServiceProvider.Tests.Helpers
         /// <summary>
         /// Generates a list of fake SCIM users
         /// </summary>
-        public static List<ScimUser> GenerateUsers(int count, bool mixActiveStatus = false)
+        public static List<ScimUser> GenerateUsers(int count, bool mixActiveStatus = false, string? customerId = null)
         {
             var users = new List<ScimUser>();
             for (int i = 0; i < count; i++)
             {
                 var active = mixActiveStatus ? Faker.Random.Bool() : true;
-                users.Add(GenerateUser(active: active));
+                users.Add(GenerateUser(active: active, customerId: customerId));
             }
             return users;
         }
@@ -84,12 +107,13 @@ namespace ScimServiceProvider.Tests.Helpers
         /// <summary>
         /// Generates a fake SCIM group with realistic data
         /// </summary>
-        public static ScimGroup GenerateGroup(string? id = null, string? displayName = null, List<ScimUser>? members = null)
+        public static ScimGroup GenerateGroup(string? id = null, string? displayName = null, List<ScimUser>? members = null, string? customerId = null)
         {
             var groupFaker = new Faker<ScimGroup>()
                 .RuleFor(g => g.Id, f => id ?? f.Random.Guid().ToString())
                 .RuleFor(g => g.DisplayName, f => displayName ?? f.Commerce.Department())
                 .RuleFor(g => g.ExternalId, f => f.Random.AlphaNumeric(10))
+                .RuleFor(g => g.CustomerId, f => customerId ?? DefaultCustomerId)
                 .RuleFor(g => g.Members, (f, g) =>
                 {
                     if (members != null)
@@ -127,13 +151,13 @@ namespace ScimServiceProvider.Tests.Helpers
         /// <summary>
         /// Generates a list of fake SCIM groups
         /// </summary>
-        public static List<ScimGroup> GenerateGroups(int count, List<ScimUser>? availableUsers = null)
+        public static List<ScimGroup> GenerateGroups(int count, List<ScimUser>? availableUsers = null, string? customerId = null)
         {
             var groups = new List<ScimGroup>();
             for (int i = 0; i < count; i++)
             {
                 var memberUsers = availableUsers?.Take(Faker.Random.Int(0, Math.Min(3, availableUsers.Count))).ToList();
-                groups.Add(GenerateGroup(members: memberUsers));
+                groups.Add(GenerateGroup(members: memberUsers, customerId: customerId));
             }
             return groups;
         }

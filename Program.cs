@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ScimServiceProvider.Data;
 using ScimServiceProvider.Services;
+using ScimServiceProvider.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
@@ -25,6 +26,7 @@ builder.Services.AddDbContext<ScimDbContext>(options =>
 // Register SCIM services
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IGroupService, GroupService>();
+builder.Services.AddScoped<ICustomerService, CustomerService>();
 
 // Configure JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -70,6 +72,9 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Add customer context middleware
+app.UseCustomerContext();
 
 app.MapControllers();
 

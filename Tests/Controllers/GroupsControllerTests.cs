@@ -17,6 +17,7 @@ namespace ScimServiceProvider.Tests.Controllers
         private readonly GroupsController _controller;
         private readonly List<ScimGroup> _testGroups;
         private readonly List<ScimUser> _testUsers;
+        private readonly string _testCustomerId = ScimTestDataGenerator.DefaultCustomerId;
 
         public GroupsControllerTests()
         {
@@ -34,17 +35,23 @@ namespace ScimServiceProvider.Tests.Controllers
             var claims = new List<Claim>
             {
                 new(ClaimTypes.NameIdentifier, "test-user"),
-                new("client_id", "scim_client")
+                new("client_id", "scim_client"),
+                new("tenant_id", "test-tenant")
             };
             var identity = new ClaimsIdentity(claims, "Bearer");
             var principal = new ClaimsPrincipal(identity);
 
+            var httpContext = new DefaultHttpContext
+            {
+                User = principal
+            };
+            
+            // Set CustomerID in Items collection as CustomerContextMiddleware would do
+            httpContext.Items["CustomerId"] = _testCustomerId;
+
             _controller.ControllerContext = new ControllerContext
             {
-                HttpContext = new DefaultHttpContext
-                {
-                    User = principal
-                }
+                HttpContext = httpContext
             };
         }
 
@@ -120,7 +127,7 @@ namespace ScimServiceProvider.Tests.Controllers
 
             // Assert
             result.Result.Should().BeOfType<OkObjectResult>();
-            _mockGroupService.Verify(s => s.GetGroupsAsync(1, 10, filter), Times.Once);
+            _mockGroupService.Verify(s => s.GetGroupsAsync(_testCustomerId, 1, 10, filter), Times.Once);
         }
 
         [Fact]
@@ -219,7 +226,7 @@ namespace ScimServiceProvider.Tests.Controllers
             group.Id = invalidId;
 
             // Mock service to return null for invalid ID
-            _mockGroupService.Setup(s => s.UpdateGroupAsync(invalidId, It.IsAny<ScimGroup>()))
+            _mockGroupService.Setup(s => s.UpdateGroupAsync(invalidId, It.IsAny<ScimGroup>(), It.IsAny<string>()))
                 .ReturnsAsync((ScimGroup?)null);
 
             // Act
@@ -248,7 +255,7 @@ namespace ScimServiceProvider.Tests.Controllers
 
             // Assert
             result.Result.Should().BeOfType<OkObjectResult>();
-            _mockGroupService.Verify(s => s.PatchGroupAsync(existingGroup.Id!, patchRequest), Times.Once);
+            _mockGroupService.Verify(s => s.PatchGroupAsync(existingGroup.Id!, patchRequest, _testCustomerId), Times.Once);
         }
 
         [Fact]
@@ -276,7 +283,7 @@ namespace ScimServiceProvider.Tests.Controllers
 
             // Assert
             result.Result.Should().BeOfType<OkObjectResult>();
-            _mockGroupService.Verify(s => s.PatchGroupAsync(existingGroup.Id!, patchRequest), Times.Once);
+            _mockGroupService.Verify(s => s.PatchGroupAsync(existingGroup.Id!, patchRequest, _testCustomerId), Times.Once);
         }
 
         [Fact]
@@ -287,7 +294,7 @@ namespace ScimServiceProvider.Tests.Controllers
             var patchRequest = ScimTestDataGenerator.GeneratePatchRequest();
 
             // Mock service to return null for invalid ID
-            _mockGroupService.Setup(s => s.PatchGroupAsync(invalidId, It.IsAny<ScimPatchRequest>()))
+            _mockGroupService.Setup(s => s.PatchGroupAsync(invalidId, It.IsAny<ScimPatchRequest>(), It.IsAny<string>()))
                 .ReturnsAsync((ScimGroup?)null);
 
             // Act
@@ -308,7 +315,7 @@ namespace ScimServiceProvider.Tests.Controllers
 
             // Assert
             result.Should().BeOfType<NoContentResult>();
-            _mockGroupService.Verify(s => s.DeleteGroupAsync(existingGroup.Id!), Times.Once);
+            _mockGroupService.Verify(s => s.DeleteGroupAsync(existingGroup.Id!, _testCustomerId), Times.Once);
         }
 
         [Fact]
@@ -318,7 +325,7 @@ namespace ScimServiceProvider.Tests.Controllers
             var invalidId = Guid.NewGuid().ToString();
 
             // Mock service to return false for invalid ID
-            _mockGroupService.Setup(s => s.DeleteGroupAsync(invalidId))
+            _mockGroupService.Setup(s => s.DeleteGroupAsync(invalidId, It.IsAny<string>()))
                 .ReturnsAsync(false);
 
             // Act
@@ -366,7 +373,7 @@ namespace ScimServiceProvider.Tests.Controllers
             var duplicateGroup = ScimTestDataGenerator.GenerateGroup(displayName: existingGroup.DisplayName);
 
             // Mock service to throw exception for duplicate
-            _mockGroupService.Setup(s => s.CreateGroupAsync(It.IsAny<ScimGroup>()))
+            _mockGroupService.Setup(s => s.CreateGroupAsync(It.IsAny<ScimGroup>(), It.IsAny<string>()))
                 .ThrowsAsync(new InvalidOperationException("Group name already exists"));
 
             // Act
@@ -393,8 +400,8 @@ namespace ScimServiceProvider.Tests.Controllers
             };
 
             // Mock service to handle gracefully
-            _mockGroupService.Setup(s => s.CreateGroupAsync(It.IsAny<ScimGroup>()))
-                .ReturnsAsync((ScimGroup group) =>
+            _mockGroupService.Setup(s => s.CreateGroupAsync(It.IsAny<ScimGroup>(), It.IsAny<string>()))
+                .ReturnsAsync((ScimGroup group, string customerId) =>
                 {
                     group.Id = Guid.NewGuid().ToString();
                     group.Meta = new ScimMeta

@@ -18,6 +18,16 @@ namespace ScimServiceProvider.Controllers
         {
             _groupService = groupService;
         }
+        
+        // Helper method to get the customer ID from context
+        private string GetCustomerId()
+        {
+            if (HttpContext.Items.TryGetValue("CustomerId", out var customerId) && customerId != null)
+            {
+                return customerId.ToString() ?? throw new InvalidOperationException("Customer ID is null");
+            }
+            throw new InvalidOperationException("Customer context not available");
+        }
 
         [HttpGet]
         public async Task<ActionResult<ScimListResponse<ScimGroup>>> GetGroups(
@@ -46,8 +56,13 @@ namespace ScimServiceProvider.Controllers
 
             try
             {
-                var result = await _groupService.GetGroupsAsync(startIndex, count, filter);
+                string customerId = GetCustomerId();
+                var result = await _groupService.GetGroupsAsync(customerId, startIndex, count, filter);
                 return Ok(result);
+            }
+            catch (InvalidOperationException iex)
+            {
+                return BadRequest(new ScimError { Status = 400, Detail = iex.Message });
             }
             catch (Exception ex)
             {
@@ -64,7 +79,8 @@ namespace ScimServiceProvider.Controllers
         {
             try
             {
-                var group = await _groupService.GetGroupAsync(id);
+                string customerId = GetCustomerId();
+                var group = await _groupService.GetGroupAsync(id, customerId);
                 if (group == null)
                 {
                     return NotFound(new ScimError 
@@ -75,6 +91,10 @@ namespace ScimServiceProvider.Controllers
                 }
 
                 return Ok(group);
+            }
+            catch (InvalidOperationException iex)
+            {
+                return BadRequest(new ScimError { Status = 400, Detail = iex.Message });
             }
             catch (Exception ex)
             {
@@ -114,7 +134,8 @@ namespace ScimServiceProvider.Controllers
                     });
                 }
         
-                var createdGroup = await _groupService.CreateGroupAsync(group);
+                string customerId = GetCustomerId();
+                var createdGroup = await _groupService.CreateGroupAsync(group, customerId);
                 return CreatedAtAction(nameof(GetGroup), new { id = createdGroup.Id }, createdGroup);
             }
             catch (InvalidOperationException ex) when (ex.Message.Contains("already exists"))
@@ -150,7 +171,8 @@ namespace ScimServiceProvider.Controllers
                     });
                 }
 
-                var updatedGroup = await _groupService.UpdateGroupAsync(id, group);
+                string customerId = GetCustomerId();
+                var updatedGroup = await _groupService.UpdateGroupAsync(id, group, customerId);
                 if (updatedGroup == null)
                 {
                     return NotFound(new ScimError 
@@ -177,7 +199,8 @@ namespace ScimServiceProvider.Controllers
         {
             try
             {
-                var patchedGroup = await _groupService.PatchGroupAsync(id, patchRequest);
+                string customerId = GetCustomerId();
+                var patchedGroup = await _groupService.PatchGroupAsync(id, patchRequest, customerId);
                 if (patchedGroup == null)
                 {
                     return NotFound(new ScimError 
@@ -204,7 +227,8 @@ namespace ScimServiceProvider.Controllers
         {
             try
             {
-                var deleted = await _groupService.DeleteGroupAsync(id);
+                string customerId = GetCustomerId();
+                var deleted = await _groupService.DeleteGroupAsync(id, customerId);
                 if (!deleted)
                 {
                     return NotFound(new ScimError 

@@ -16,6 +16,7 @@ namespace ScimServiceProvider.Tests.Controllers
         private readonly Mock<IUserService> _mockUserService;
         private readonly UsersController _controller;
         private readonly List<ScimUser> _testUsers;
+        private readonly string _testCustomerId = ScimTestDataGenerator.DefaultCustomerId;
 
         public UsersControllerTests()
         {
@@ -32,17 +33,23 @@ namespace ScimServiceProvider.Tests.Controllers
             var claims = new List<Claim>
             {
                 new(ClaimTypes.NameIdentifier, "test-user"),
-                new("client_id", "scim_client")
+                new("client_id", "scim_client"),
+                new("tenant_id", "test-tenant")
             };
             var identity = new ClaimsIdentity(claims, "Bearer");
             var principal = new ClaimsPrincipal(identity);
 
+            var httpContext = new DefaultHttpContext
+            {
+                User = principal
+            };
+            
+            // Set CustomerID in Items collection as CustomerContextMiddleware would do
+            httpContext.Items["CustomerId"] = _testCustomerId;
+
             _controller.ControllerContext = new ControllerContext
             {
-                HttpContext = new DefaultHttpContext
-                {
-                    User = principal
-                }
+                HttpContext = httpContext
             };
         }
 
@@ -113,7 +120,7 @@ namespace ScimServiceProvider.Tests.Controllers
 
             // Assert
             var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
-            _mockUserService.Verify(s => s.GetUsersAsync(1, 10, filter), Times.Once);
+            _mockUserService.Verify(s => s.GetUsersAsync(_testCustomerId, 1, 10, filter), Times.Once);
         }
 
         [Fact]
@@ -193,7 +200,7 @@ namespace ScimServiceProvider.Tests.Controllers
             user.Id = invalidId;
 
             // Mock service to return null for invalid ID
-            _mockUserService.Setup(s => s.UpdateUserAsync(invalidId, It.IsAny<ScimUser>()))
+            _mockUserService.Setup(s => s.UpdateUserAsync(invalidId, It.IsAny<ScimUser>(), It.IsAny<string>()))
                 .ReturnsAsync((ScimUser?)null);
 
             // Act
@@ -222,7 +229,7 @@ namespace ScimServiceProvider.Tests.Controllers
 
             // Assert
             result.Result.Should().BeOfType<OkObjectResult>();
-            _mockUserService.Verify(s => s.PatchUserAsync(existingUser.Id!, patchRequest), Times.Once);
+            _mockUserService.Verify(s => s.PatchUserAsync(existingUser.Id!, patchRequest, _testCustomerId), Times.Once);
         }
 
         [Fact]
@@ -233,7 +240,7 @@ namespace ScimServiceProvider.Tests.Controllers
             var patchRequest = ScimTestDataGenerator.GeneratePatchRequest();
 
             // Mock service to return null for invalid ID
-            _mockUserService.Setup(s => s.PatchUserAsync(invalidId, It.IsAny<ScimPatchRequest>()))
+            _mockUserService.Setup(s => s.PatchUserAsync(invalidId, It.IsAny<ScimPatchRequest>(), It.IsAny<string>()))
                 .ReturnsAsync((ScimUser?)null);
 
             // Act
@@ -254,7 +261,7 @@ namespace ScimServiceProvider.Tests.Controllers
 
             // Assert
             result.Should().BeOfType<NoContentResult>();
-            _mockUserService.Verify(s => s.DeleteUserAsync(existingUser.Id!), Times.Once);
+            _mockUserService.Verify(s => s.DeleteUserAsync(existingUser.Id!, _testCustomerId), Times.Once);
         }
 
         [Fact]
@@ -264,7 +271,7 @@ namespace ScimServiceProvider.Tests.Controllers
             var invalidId = Guid.NewGuid().ToString();
 
             // Mock service to return false for invalid ID
-            _mockUserService.Setup(s => s.DeleteUserAsync(invalidId))
+            _mockUserService.Setup(s => s.DeleteUserAsync(invalidId, It.IsAny<string>()))
                 .ReturnsAsync(false);
 
             // Act
@@ -312,7 +319,7 @@ namespace ScimServiceProvider.Tests.Controllers
             var duplicateUser = ScimTestDataGenerator.GenerateUser(userName: existingUser.UserName);
 
             // Mock service to throw exception for duplicate
-            _mockUserService.Setup(s => s.CreateUserAsync(It.IsAny<ScimUser>()))
+            _mockUserService.Setup(s => s.CreateUserAsync(It.IsAny<ScimUser>(), It.IsAny<string>()))
                 .ThrowsAsync(new InvalidOperationException("Username already exists"));
 
             // Act

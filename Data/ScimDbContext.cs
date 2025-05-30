@@ -12,16 +12,38 @@ namespace ScimServiceProvider.Data
 
         public DbSet<ScimUser> Users { get; set; }
         public DbSet<ScimGroup> Groups { get; set; }
+        public DbSet<Customer> Customers { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
+            // Configure Customer entity
+            modelBuilder.Entity<Customer>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired();
+                entity.Property(e => e.TenantId).IsRequired();
+                
+                // One customer to many users
+                entity.HasMany(c => c.Users)
+                      .WithOne(u => u.Customer)
+                      .HasForeignKey(u => u.CustomerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+                
+                // One customer to many groups
+                entity.HasMany(c => c.Groups)
+                      .WithOne(g => g.Customer)
+                      .HasForeignKey(g => g.CustomerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+            
             // Configure ScimUser entity
             modelBuilder.Entity<ScimUser>(entity =>
             {
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.UserName).IsRequired();
+                entity.Property(e => e.CustomerId).IsRequired();
                 
                 // Convert complex objects to JSON for storage
                 entity.Property(e => e.Name)
@@ -60,6 +82,7 @@ namespace ScimServiceProvider.Data
             {
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.DisplayName).IsRequired();
+                entity.Property(e => e.CustomerId).IsRequired();
 
                 entity.Property(e => e.Members)
                     .HasConversion(
