@@ -1,0 +1,12 @@
+{
+  "name": "SCIM Service Provider Dev Container",
+  "image": "mcr.microsoft.com/dotnet/sdk:8.0",
+  "features": {},
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "formulahendry.dotnet-test-explorer"
+      ]
+    }
+  }
+}
