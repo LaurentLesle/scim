@@ -2,6 +2,10 @@
 
 This is a .NET Core 8.0 implementation of a SCIM (System for Cross-domain Identity Management) 2.0 service provider that can be integrated with Azure AD for user provisioning.
 
+## Architecture
+
+See the [Architecture Diagram](docs/architecture_diagram.md) for a visual representation of how this service integrates with Microsoft Entra ID (Azure AD).
+
 ## Features
 
 - **SCIM 2.0 Compliant**: Implements the SCIM 2.0 specification
