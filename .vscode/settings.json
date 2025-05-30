@@ -1,0 +1,11 @@
+{
+    "devTunnels.access": "public",
+    "devTunnels.showInlineActions": true,
+    "devTunnels.ports": [
+        {
+            "portNumber": 5000,
+            "label": "SCIM API",
+            "protocol": "https"
+        }
+    ]
+}
