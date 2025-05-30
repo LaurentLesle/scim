@@ -7,7 +7,6 @@ obj/
 *.sln.docstates
 
 # VS Code
-.vscode/
 .history/
 
 # Test results
