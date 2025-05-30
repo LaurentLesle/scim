@@ -14,9 +14,28 @@ namespace ScimServiceProvider.Middleware
 
         public async Task InvokeAsync(HttpContext context, ICustomerService customerService)
         {
-            // Only handle SCIM endpoints
+            var path = context.Request.Path.Value?.ToLowerInvariant();
+            
+            // Skip tenant validation for tenant-agnostic endpoints
+            var tenantAgnosticPaths = new[]
+            {
+                "/schemas",  // Root-level schemas endpoint
+                "/scim/v2/schemas",
+                "/scim/v2/resourcetypes", 
+                "/scim/v2/serviceproviderconfig"
+            };
+            
+            if (tenantAgnosticPaths.Any(agnosticPath => path?.StartsWith(agnosticPath) == true))
+            {
+                // Skip tenant validation for these endpoints
+                await _next(context);
+                return;
+            }
+            
+            // Only handle SCIM endpoints that require tenant validation
             if (context.Request.Path.Value?.StartsWith("/scim/v2/") == true)
             {
+                
                 // Extract tenant id from auth token or header
                 string? tenantId = null;
                 

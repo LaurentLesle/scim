@@ -70,16 +70,16 @@ Dev Tunnels allow you to securely expose your local development server to the in
     # Add port forwarding for SCIM service (using the port we started above)
     devtunnel port create $TUNNEL_ID -p $SCIM_PORT --protocol http
 
+    # Start hosting (run in background)
+    devtunnel host $TUNNEL_ID &
+    echo "Tunnel is now hosting in background"
+
     # Get the tunnel URL and store in environment variable
     TUNNEL_URL=$(devtunnel show $TUNNEL_ID --json | jq -r '.tunnel.ports[0].portUri')
     export TUNNEL_URL
     export SCIM_PORT
     echo "Tunnel URL: $TUNNEL_URL"
     echo "SCIM Port: $SCIM_PORT"
-
-    # Start hosting (run in background)
-    devtunnel host $TUNNEL_ID &
-    echo "Tunnel is now hosting in background"
 
     # Test the tunnel immediately
     sleep 5

@@ -83,6 +83,21 @@ using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ScimDbContext>();
     context.Database.EnsureCreated();
+    
+    // Add test customer for development
+    if (app.Environment.IsDevelopment() && !context.Customers.Any())
+    {
+        var testCustomer = new ScimServiceProvider.Models.Customer
+        {
+            Id = "test-customer-1",
+            Name = "Test Customer",
+            TenantId = "tenant1",
+            IsActive = true,
+            Created = DateTime.UtcNow
+        };
+        context.Customers.Add(testCustomer);
+        await context.SaveChangesAsync();
+    }
 }
 
 app.Run();

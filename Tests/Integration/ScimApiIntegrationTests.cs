@@ -157,7 +157,7 @@ namespace ScimServiceProvider.Tests.Integration
         public async Task Schemas_ReturnsUserAndGroupSchemas()
         {
             // Act
-            var response = await _client.GetAsync("/scim/v2/Schemas");
+            var response = await _client.GetAsync("/Schemas");
 
             // Assert
             response.StatusCode.Should().Be(HttpStatusCode.OK);

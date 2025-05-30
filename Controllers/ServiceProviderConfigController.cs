@@ -62,46 +62,5 @@ namespace ScimServiceProvider.Controllers
 
             return Ok(resourceTypes);
         }
-
-        [HttpGet("Schemas")]
-        public ActionResult GetSchemas()
-        {
-            var schemas = new
-            {
-                schemas = new[] { "urn:ietf:params:scim:api:messages:2.0:ListResponse" },
-                totalResults = 2,
-                Resources = new[]
-                {
-                    new
-                    {
-                        schemas = new[] { "urn:ietf:params:scim:schemas:core:2.0:Schema" },
-                        id = "urn:ietf:params:scim:schemas:core:2.0:User",
-                        name = "User",
-                        description = "User Account",
-                        attributes = new object[] { /* User schema attributes */ },
-                        meta = new
-                        {
-                            resourceType = "Schema",
-                            location = "/v2/Schemas/urn:ietf:params:scim:schemas:core:2.0:User"
-                        }
-                    },
-                    new
-                    {
-                        schemas = new[] { "urn:ietf:params:scim:schemas:core:2.0:Schema" },
-                        id = "urn:ietf:params:scim:schemas:core:2.0:Group",
-                        name = "Group",
-                        description = "Group",
-                        attributes = new object[] { /* Group schema attributes */ },
-                        meta = new
-                        {
-                            resourceType = "Schema",
-                            location = "/v2/Schemas/urn:ietf:params:scim:schemas:core:2.0:Group"
-                        }
-                    }
-                }
-            };
-
-            return Ok(schemas);
-        }
     }
 }
