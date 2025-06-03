@@ -5,6 +5,7 @@ using ScimServiceProvider.Middleware;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,7 +17,7 @@ builder.Services.AddControllers(options =>
 })
 .AddJsonOptions(options =>
 {
-    options.JsonSerializerOptions.PropertyNamingPolicy = null;
+    options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
 });
 
 // Configure Entity Framework
@@ -46,6 +47,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
+
+// Add HTTP request logging for development
+builder.Services.AddHttpLogging(logging =>
+{
+    logging.LoggingFields = Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.All;
+    logging.MediaTypeOptions.AddText("application/scim+json");
+    logging.RequestBodyLogLimit = 4096;
+    logging.ResponseBodyLogLimit = 4096;
+});
+
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "SCIM Service Provider API", Version = "v1" });
@@ -68,6 +79,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// Enable HTTP request logging in all environments for SCIM debugging
+app.UseHttpLogging();
+
+// Add request logging middleware to capture all requests
+app.UseRequestLogging();
+
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
@@ -84,8 +101,8 @@ using (var scope = app.Services.CreateScope())
     var context = scope.ServiceProvider.GetRequiredService<ScimDbContext>();
     context.Database.EnsureCreated();
     
-    // Add test customer for development
-    if (app.Environment.IsDevelopment() && !context.Customers.Any())
+    // Add test customer for SCIM validation (needed in all environments)
+    if (!context.Customers.Any())
     {
         var testCustomer = new ScimServiceProvider.Models.Customer
         {

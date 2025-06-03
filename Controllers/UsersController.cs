@@ -8,15 +8,18 @@ namespace ScimServiceProvider.Controllers
 {
     [ApiController]
     [Route("scim/v2/[controller]")]
+    [Route("[controller]")] // Support both /scim/v2/Users and /Users
     [Authorize]
     [ScimResult]
     public class UsersController : ControllerBase
     {
         private readonly IUserService _userService;
+        private readonly ILogger<UsersController> _logger;
 
-        public UsersController(IUserService userService)
+        public UsersController(IUserService userService, ILogger<UsersController> logger)
         {
             _userService = userService;
+            _logger = logger;
         }
         
         // Helper method to get the customer ID from context
@@ -35,9 +38,14 @@ namespace ScimServiceProvider.Controllers
             [FromQuery] int count = 10,
             [FromQuery] string? filter = null)
         {
+            var customerId = GetCustomerId();
+            _logger.LogInformation("👥 GET Users requested for customer: {CustomerId}, startIndex: {StartIndex}, count: {Count}, filter: {Filter}", 
+                customerId, startIndex, count, filter ?? "none");
+            
             // Validate parameters according to SCIM spec
             if (startIndex <= 0)
             {
+                _logger.LogWarning("❌ Invalid startIndex: {StartIndex} - must be greater than 0", startIndex);
                 return BadRequest(new ScimError 
                 { 
                     Status = 400, 
@@ -47,6 +55,7 @@ namespace ScimServiceProvider.Controllers
 
             if (count <= 0)
             {
+                _logger.LogWarning("❌ Invalid count: {Count} - must be greater than 0", count);
                 return BadRequest(new ScimError 
                 { 
                     Status = 400, 
@@ -56,16 +65,19 @@ namespace ScimServiceProvider.Controllers
 
             try
             {
-                string customerId = GetCustomerId();
                 var result = await _userService.GetUsersAsync(customerId, startIndex, count, filter);
+                _logger.LogInformation("✅ Retrieved {UserCount} users for customer: {CustomerId}", 
+                    result.TotalResults, customerId);
                 return Ok(result);
             }
             catch (InvalidOperationException iex)
             {
+                _logger.LogWarning("❌ Customer context error: {ErrorMessage}", iex.Message);
                 return BadRequest(new ScimError { Status = 400, Detail = iex.Message });
             }
             catch (Exception ex)
             {
+                _logger.LogError("❌ Error retrieving users: {ErrorMessage}", ex.Message);
                 return StatusCode(500, new ScimError 
                 { 
                     Status = 500, 
@@ -77,12 +89,15 @@ namespace ScimServiceProvider.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<ScimUser>> GetUser(string id)
         {
+            _logger.LogInformation("👤 GET User requested for ID: {UserId}", id);
+            
             try
             {
                 string customerId = GetCustomerId();
                 var user = await _userService.GetUserAsync(id, customerId);
                 if (user == null)
                 {
+                    _logger.LogWarning("❌ User not found: {UserId} for customer: {CustomerId}", id, customerId);
                     return NotFound(new ScimError 
                     { 
                         Status = 404, 
@@ -90,6 +105,8 @@ namespace ScimServiceProvider.Controllers
                     });
                 }
 
+                _logger.LogInformation("✅ User retrieved: {UserId} ({UserName}) for customer: {CustomerId}", 
+                    id, user.UserName, customerId);
                 return Ok(user);
             }
             catch (InvalidOperationException iex)
@@ -110,6 +127,18 @@ namespace ScimServiceProvider.Controllers
         [HttpPost]
         public async Task<ActionResult<ScimUser>> CreateUser([FromBody] ScimUser user)
         {
+            _logger.LogInformation("➕ POST User requested - creating user with UserName: {UserName}", user?.UserName ?? "null");
+            
+            if (user == null)
+            {
+                _logger.LogWarning("❌ User creation failed - request body is null");
+                return BadRequest(new ScimError
+                {
+                    Status = 400,
+                    Detail = "Request body cannot be null"
+                });
+            }
+            
             try
             {
                 // If Id is null or empty, generate a new one (SCIM spec: server generates Id)
@@ -120,6 +149,7 @@ namespace ScimServiceProvider.Controllers
                 // SCIM requires the schemas property
                 if (user.Schemas == null || !user.Schemas.Contains("urn:ietf:params:scim:schemas:core:2.0:User"))
                 {
+                    _logger.LogWarning("❌ Invalid schemas property in create user request");
                     return BadRequest(new ScimError
                     {
                         Status = 400,
@@ -128,6 +158,7 @@ namespace ScimServiceProvider.Controllers
                 }
                 if (string.IsNullOrEmpty(user.UserName))
                 {
+                    _logger.LogWarning("❌ UserName is required but not provided in create user request");
                     return BadRequest(new ScimError
                     {
                         Status = 400,
@@ -142,6 +173,7 @@ namespace ScimServiceProvider.Controllers
                 var existingUser = await _userService.GetUserByUsernameAsync(user.UserName, customerId);
                 if (existingUser != null)
                 {
+                    _logger.LogWarning("❌ User creation failed - user already exists: {UserName} for customer: {CustomerId}", user.UserName, customerId);
                     return Conflict(new ScimError
                     {
                         Status = 409,
@@ -150,10 +182,13 @@ namespace ScimServiceProvider.Controllers
                 }
 
                 var createdUser = await _userService.CreateUserAsync(user, customerId);
+                _logger.LogInformation("✅ User created successfully: {UserId} ({UserName}) for customer: {CustomerId}", 
+                    createdUser.Id, createdUser.UserName, customerId);
                 return CreatedAtAction(nameof(GetUser), new { id = createdUser.Id }, createdUser);
             }
             catch (Exception ex)
             {
+                _logger.LogError("❌ Error creating user: {ErrorMessage}", ex.Message);
                 return StatusCode(500, new ScimError
                 {
                     Status = 500,
@@ -165,11 +200,14 @@ namespace ScimServiceProvider.Controllers
         [HttpPut("{id}")]
         public async Task<ActionResult<ScimUser>> UpdateUser(string id, [FromBody] ScimUser user)
         {
+            _logger.LogInformation("✏️ PUT User requested - updating user: {UserId}", id);
+            
             try
             {
                 // Validate that the ID in the URL matches the ID in the user object
                 if (!string.IsNullOrEmpty(user.Id) && user.Id != id)
                 {
+                    _logger.LogWarning("❌ ID mismatch in update user request - URL: {UrlId}, Body: {BodyId}", id, user.Id);
                     return BadRequest(new ScimError 
                     { 
                         Status = 400, 
@@ -182,6 +220,7 @@ namespace ScimServiceProvider.Controllers
                 var updatedUser = await _userService.UpdateUserAsync(id, user, customerId);
                 if (updatedUser == null)
                 {
+                    _logger.LogWarning("❌ User update failed - user not found: {UserId} for customer: {CustomerId}", id, customerId);
                     return NotFound(new ScimError 
                     { 
                         Status = 404, 
@@ -189,10 +228,13 @@ namespace ScimServiceProvider.Controllers
                     });
                 }
 
+                _logger.LogInformation("✅ User updated successfully: {UserId} ({UserName}) for customer: {CustomerId}", 
+                    updatedUser.Id, updatedUser.UserName, customerId);
                 return Ok(updatedUser);
             }
             catch (Exception ex)
             {
+                _logger.LogError("❌ Error updating user {UserId}: {ErrorMessage}", id, ex.Message);
                 return StatusCode(500, new ScimError 
                 { 
                     Status = 500, 
@@ -204,6 +246,8 @@ namespace ScimServiceProvider.Controllers
         [HttpPatch("{id}")]
         public async Task<ActionResult<ScimUser>> PatchUser(string id, [FromBody] ScimPatchRequest patchRequest)
         {
+            _logger.LogInformation("🔧 PATCH User requested - patching user: {UserId}", id);
+            
             try
             {
                 string customerId = GetCustomerId();
@@ -211,6 +255,7 @@ namespace ScimServiceProvider.Controllers
                 var patchedUser = await _userService.PatchUserAsync(id, patchRequest, customerId);
                 if (patchedUser == null)
                 {
+                    _logger.LogWarning("❌ User patch failed - user not found: {UserId} for customer: {CustomerId}", id, customerId);
                     return NotFound(new ScimError 
                     { 
                         Status = 404, 
@@ -218,10 +263,13 @@ namespace ScimServiceProvider.Controllers
                     });
                 }
 
+                _logger.LogInformation("✅ User patched successfully: {UserId} ({UserName}) for customer: {CustomerId}", 
+                    patchedUser.Id, patchedUser.UserName, customerId);
                 return Ok(patchedUser);
             }
             catch (Exception ex)
             {
+                _logger.LogError("❌ Error patching user {UserId}: {ErrorMessage}", id, ex.Message);
                 return StatusCode(500, new ScimError 
                 { 
                     Status = 500, 
@@ -233,6 +281,8 @@ namespace ScimServiceProvider.Controllers
         [HttpDelete("{id}")]
         public async Task<ActionResult> DeleteUser(string id)
         {
+            _logger.LogInformation("🗑️ DELETE User requested - deleting user: {UserId}", id);
+            
             try
             {
                 string customerId = GetCustomerId();
@@ -240,16 +290,20 @@ namespace ScimServiceProvider.Controllers
                 var deleted = await _userService.DeleteUserAsync(id, customerId);
                 if (!deleted)
                 {
+                    _logger.LogWarning("❌ User deletion failed - user not found: {UserId} for customer: {CustomerId}", id, customerId);
                     return NotFound(new ScimError 
                     { 
                         Status = 404, 
                         Detail = "User not found" 
                     });
                 }
+                
+                _logger.LogInformation("✅ User deleted successfully: {UserId} for customer: {CustomerId}", id, customerId);
                 return NoContent();
             }
             catch (Exception ex)
             {
+                _logger.LogError("❌ Error deleting user {UserId}: {ErrorMessage}", id, ex.Message);
                 return StatusCode(500, new ScimError 
                 { 
                     Status = 500, 

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Moq;
 using ScimServiceProvider.Controllers;
 using ScimServiceProvider.Models;
@@ -14,6 +15,7 @@ namespace ScimServiceProvider.Tests.Controllers
     public class GroupsControllerTests
     {
         private readonly Mock<IGroupService> _mockGroupService;
+        private readonly Mock<ILogger<GroupsController>> _mockLogger;
         private readonly GroupsController _controller;
         private readonly List<ScimGroup> _testGroups;
         private readonly List<ScimUser> _testUsers;
@@ -24,7 +26,8 @@ namespace ScimServiceProvider.Tests.Controllers
             _testUsers = ScimTestDataGenerator.GenerateUsers(5);
             _testGroups = ScimTestDataGenerator.GenerateGroups(5, _testUsers);
             _mockGroupService = MockServiceProviders.CreateMockGroupService(_testGroups, _testUsers);
-            _controller = new GroupsController(_mockGroupService.Object);
+            _mockLogger = new Mock<ILogger<GroupsController>>();
+            _controller = new GroupsController(_mockGroupService.Object, _mockLogger.Object);
 
             // Setup controller context with authentication
             SetupControllerContext();

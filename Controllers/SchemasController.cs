@@ -8,9 +8,18 @@ namespace ScimServiceProvider.Controllers
     [ScimResult]
     public class SchemasController : ControllerBase
     {
+        private readonly ILogger<SchemasController> _logger;
+
+        public SchemasController(ILogger<SchemasController> logger)
+        {
+            _logger = logger;
+        }
+
         [HttpGet("Schemas")]
         public ActionResult GetSchemas()
         {
+            _logger.LogInformation("📄 Schemas endpoint requested - returning list of all schemas");
+            
             var schemas = new
             {
                 schemas = new[] { "urn:ietf:params:scim:api:messages:2.0:ListResponse" },
@@ -22,18 +31,27 @@ namespace ScimServiceProvider.Controllers
                 }
             };
 
+            _logger.LogInformation("✅ Returning {SchemaCount} schemas in response", schemas.totalResults);
             return Ok(schemas);
         }
 
         [HttpGet("Schemas/{schemaUri}")]
         public ActionResult GetSchema(string schemaUri)
         {
-            return schemaUri switch
+            _logger.LogInformation("🔍 Schema requested for URI: {SchemaUri}", schemaUri);
+            
+            switch (schemaUri)
             {
-                "urn:ietf:params:scim:schemas:core:2.0:User" => Ok(GetUserSchema()),
-                "urn:ietf:params:scim:schemas:core:2.0:Group" => Ok(GetGroupSchema()),
-                _ => NotFound(new { error = "Schema not found" })
-            };
+                case "urn:ietf:params:scim:schemas:core:2.0:User":
+                    _logger.LogInformation("✅ Returning User schema");
+                    return Ok(GetUserSchema());
+                case "urn:ietf:params:scim:schemas:core:2.0:Group":
+                    _logger.LogInformation("✅ Returning Group schema");
+                    return Ok(GetGroupSchema());
+                default:
+                    _logger.LogWarning("❌ Schema not found for URI: {SchemaUri}", schemaUri);
+                    return NotFound(new { error = "Schema not found" });
+            }
         }
 
         private object GetUserSchema()

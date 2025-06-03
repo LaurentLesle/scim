@@ -28,13 +28,9 @@ Dev Tunnels allow you to securely expose your local development server to the in
 - Microsoft/Entra ID accounts: `devtunnel user login`
 - GitHub accounts: `devtunnel user login --github`
 
-## Setup Options
+## Setup
 
-### Option 1: GitHub Codespaces Built-in Port Forwarding (Simplest - No CLI needed)
-
-> **Important**: Start your SCIM service first, then make it public!
-
-1. **Start your SCIM service first:**
+### Step 1: Start the service and dev tunnel
    ```bash
    # Find available port and start service
    SCIM_PORT=""
@@ -46,8 +42,12 @@ Dev Tunnels allow you to securely expose your local development server to the in
    done
    
    echo "Starting SCIM service on port $SCIM_PORT"
-   dotnet run --urls="http://0.0.0.0:$SCIM_PORT" &
+   # Start service in background with log redirection
+   nohup dotnet run --urls="http://0.0.0.0:$SCIM_PORT" > scim.log 2>&1 &
    SCIM_PID=$!
+   
+   echo "SCIM service started in background (PID: $SCIM_PID)"
+   echo "To view real-time logs: tail -f scim.log"
    
    # Wait for service to start
    sleep 5
@@ -59,170 +59,122 @@ Dev Tunnels allow you to securely expose your local development server to the in
    
    if echo "$LOCAL_TEST" | jq -e '.access_token' > /dev/null 2>&1; then
      echo "✅ SCIM service working locally - ready to make public"
+     echo ""
+     echo "💡 To view real-time logs while working:"
+     echo "   tail -f scim.log"
+     echo "   # Or in another terminal: tail -f /workspaces/scim/scim.log"
    else
      echo "❌ Fix SCIM service issues before making port public!"
+     echo "Check logs with: tail -f scim.log"
      exit 1
    fi
 
-   TUNNEL_ID=$(devtunnel create --allow-anonymous | grep "Tunnel ID" | awk '{print $4}')
-    echo "Created tunnel: $TUNNEL_ID"
+  TUNNEL_ID=$(devtunnel create --allow-anonymous | grep "Tunnel ID" | awk '{print $4}')
+  echo "Created tunnel: $TUNNEL_ID"
 
-    # Add port forwarding for SCIM service (using the port we started above)
-    devtunnel port create $TUNNEL_ID -p $SCIM_PORT --protocol http
+  # Add port forwarding for SCIM service (using the port we started above)
+  devtunnel port create $TUNNEL_ID -p $SCIM_PORT --protocol http
 
-    # Start hosting (run in background)
-    devtunnel host $TUNNEL_ID &
-    echo "Tunnel is now hosting in background"
+  # Start hosting (run in background)
+  devtunnel host $TUNNEL_ID &
+  echo "Tunnel is now hosting in background"
+  
+  sleep 5
 
-    # Get the tunnel URL and store in environment variable
-    TUNNEL_URL=$(devtunnel show $TUNNEL_ID --json | jq -r '.tunnel.ports[0].portUri')
-    export TUNNEL_URL
-    export SCIM_PORT
-    echo "Tunnel URL: $TUNNEL_URL"
-    echo "SCIM Port: $SCIM_PORT"
+  # Get the tunnel URL and store in environment variable (remove trailing slash)
+  TUNNEL_URL=$(devtunnel show $TUNNEL_ID --json | jq -r '.tunnel.ports[0].portUri | rtrimstr("/")')
+  export TUNNEL_URL
+  export SCIM_PORT
+  echo "Tunnel URL: $TUNNEL_URL"
+  echo "SCIM Port: $SCIM_PORT"
 
-    # Test the tunnel immediately
-    sleep 5
-    echo "Testing tunnel connectivity..."
-    TUNNEL_TEST=$(curl -s "${TUNNEL_URL}api/auth/token" \
-    -H "Content-Type: application/json" \
-    -d '{"clientId": "scim_client","clientSecret": "scim_secret","grantType": "client_credentials"}')
-
-    if echo "$TUNNEL_TEST" | jq -e '.access_token' > /dev/null 2>&1; then
-      echo "✅ Tunnel working - SCIM API accessible publicly!"
-    else
-      echo "❌ Tunnel test failed. Check if devtunnel host is running."
-      echo "Response: $TUNNEL_TEST"
-    fi
-
-   
-   # Test the tunnel
-   curl -s "${TUNNEL_URL}api/auth/token" \
-     -H "Content-Type: application/json" \
-     -d '{"clientId": "scim_client","clientSecret": "scim_secret","grantType": "client_credentials"}' | jq '.'
-     echo $TUNNEL_URL
-   ```
-
-## Key Differences Between Methods
-
-| Method | CLI Required? | Commands Needed | Best For |
-|--------|---------------|-----------------|----------|
-| **GitHub Codespaces Port Forwarding** | ❌ No | Just make port public in VS Code | Quick testing, simplest setup |
-| **Dev Tunnels CLI** | ✅ Yes | `devtunnel create`, `devtunnel host` | Advanced features, authentication control |
-| **VS Code Extension** | ❌ No | Use Command Palette | GUI-based tunnel management |
-
-**Critical Workflow for All Methods:**
-1. **Always start SCIM service first** (`dotnet run --urls="http://0.0.0.0:$SCIM_PORT"`)
-2. **Test locally first** (`curl http://localhost:$SCIM_PORT/api/auth/token`)
-3. **Then create public tunnel** (using your chosen method above)
-4. **Test public access** (`curl $TUNNEL_URL/api/auth/token`)
-
-**Important**: Don't mix methods! Choose one approach:
-- For Codespaces: Set `TUNNEL_URL` and skip all `devtunnel` commands
-- For CLI: Use `devtunnel create/host` commands to set up tunnel first
-- For VS Code Extension: Use Command Palette after service is running
-
-## 🚀 Complete Test Workflow (Recommended Order)
-
-> **Critical First Step**: Always start your SCIM service before creating tunnels or configuring public access!
-
-### Step 1: Start SCIM Service First (Always Do This First!)
-
-**Why start the service first?**
-- Ensures you have a working service before exposing it publicly
-- Allows you to test locally first to catch any issues
-- Prevents port conflicts when creating tunnels
-- Makes troubleshooting easier if something goes wrong
-
-```bash
-# Find available port and start SCIM service
-SCIM_PORT=""
-for port in {5000..5010}; do
-  if ! curl -s "http://localhost:$port" > /dev/null 2>&1; then
-    SCIM_PORT=$port
-    break
-  fi
-done
-
-echo "Starting SCIM service on port $SCIM_PORT"
-dotnet run --urls="http://0.0.0.0:$SCIM_PORT" &
-SCIM_PID=$!
-export SCIM_PORT
-
-# Wait for service to start
-sleep 5
-
-# Verify service is running locally FIRST
-echo "Testing local service before creating public tunnels..."
-LOCAL_TEST=$(curl -s "http://localhost:$SCIM_PORT/api/auth/token" \
+  # Test the tunnel immediately
+  echo "Testing tunnel connectivity..."
+  TUNNEL_TEST=$(curl -s "${TUNNEL_URL}/api/auth/token" \
   -H "Content-Type: application/json" \
   -d '{"clientId": "scim_client","clientSecret": "scim_secret","grantType": "client_credentials"}')
 
-if echo "$LOCAL_TEST" | jq -e '.access_token' > /dev/null 2>&1; then
-  echo "✅ SCIM service running successfully on port $SCIM_PORT (PID: $SCIM_PID)"
-  echo "✅ Local authentication working - ready to create public tunnel"
-else
-  echo "❌ SCIM service failed to start properly!"
-  echo "Response: $LOCAL_TEST"
-  echo "Fix service issues before proceeding to tunnel creation"
-  exit 1
-fi
+  if echo "$TUNNEL_TEST" | jq -e '.access_token' > /dev/null 2>&1; then
+    echo "✅ Tunnel working - SCIM API accessible publicly!"
+  else
+    echo "❌ Tunnel test failed. Check if devtunnel host is running."
+    echo "Response: $TUNNEL_TEST"
+  fi
+
+  
+  # Test the tunnel
+  curl -s "${TUNNEL_URL}/api/auth/token" \
+    -H "Content-Type: application/json" \
+    -d '{"clientId": "scim_client","clientSecret": "scim_secret","grantType": "client_credentials"}' | jq '.'
+    echo $TUNNEL_URL
+## 📊 Viewing Real-Time Logs While Service Runs in Background
+
+Since the SCIM service runs in background mode (required for dev tunnels), here are several ways to monitor logs in real-time:
+
+### Method 1: Tail the Log File (Recommended)
+# In the same terminal or a new terminal window
+tail -f scim.log
+
 ```
 
-### Step 2: Choose Your Tunnel Method (After Service is Running)
-
-Now that your SCIM service is confirmed working locally, choose how to expose it publicly:
-
-#### Option A: GitHub Codespaces Port Forwarding (Simplest)
-
-**No CLI installation required - just make the port public:**
-
-1. **Make port public in VS Code:**
-   - Go to the "PORTS" tab in VS Code
-   - Find your port (e.g., $SCIM_PORT) and right-click it
-   - Select "Port Visibility" → "Public"
-
-2. **Set tunnel URL (automatic with Codespaces):**
-   ```bash
-   export TUNNEL_URL="https://$CODESPACE_NAME-$SCIM_PORT.app.github.dev"
-   echo "Your SCIM API URL: $TUNNEL_URL"
-   
-   # Test the public tunnel immediately
-   curl -s "$TUNNEL_URL/api/auth/token" \
-     -H "Content-Type: application/json" \
-     -d '{"clientId": "scim_client","clientSecret": "scim_secret","grantType": "client_credentials"}' | jq '.'
-   ```
-
-#### Option B: Microsoft Dev Tunnels CLI
-
-**If you want more control over tunnel configuration:**
-
+### Method 2: VS Code Terminal Split
 ```bash
-# Create tunnel with anonymous access (service already running)
-TUNNEL_ID=$(devtunnel create --allow-anonymous | grep "Tunnel ID" | awk '{print $4}')
-echo "Created tunnel: $TUNNEL_ID"
-
-# Add port forwarding for the SCIM service we started in Step 1
-devtunnel port create $TUNNEL_ID -p $SCIM_PORT
-
-# Get the tunnel URL and set environment variable
-TUNNEL_URL=$(devtunnel show $TUNNEL_ID --output json | jq -r '.endpoints[0].hostRelayUri')
-export TUNNEL_URL
-echo "Tunnel URL: $TUNNEL_URL"
-
-# Start hosting (run in background)
-devtunnel host $TUNNEL_ID &
-echo "Tunnel is now hosting in background"
-
-# Test the tunnel
-sleep 3
-echo "Testing tunnel connectivity..."
-curl -s "$TUNNEL_URL/api/auth/token" \
-  -H "Content-Type: application/json" \
-  -d '{"clientId": "scim_client","clientSecret": "scim_secret","grantType": "client_credentials"}' | jq '.'
+# In VS Code, split your terminal (Ctrl+Shift+5)
+# Left side: Run tunnel setup commands
+# Right side: Monitor logs
+tail -f scim.log
 ```
 
-### Step 3: Set Up Environment Variables (After Tunnel is Created)
+### Method 3: Watch for Specific Events
+```bash
+# Watch for authentication requests only
+tail -f scim.log | grep "Auth"
+
+# Watch for errors and warnings
+tail -f scim.log | grep -E "(warn:|error:|❌)"
+
+# Watch for successful operations
+tail -f scim.log | grep -E "(info:|✅|🎫)"
+```
+
+### Method 4: Use VS Code Output Panel
+1. **View** → **Output** 
+2. Select **"C# Log"** from dropdown
+3. .NET logs will appear there automatically
+
+### Method 5: Background Process Status
+```bash
+# Check if service is still running
+ps aux | grep "dotnet run"
+
+# Check service health
+curl -s http://localhost:$SCIM_PORT/api/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"clientId":"scim_client","clientSecret":"scim_secret","grantType":"client_credentials"}' | jq '.access_token'
+
+# Stop following logs (Ctrl+C in tail terminal)
+```
+
+### Quick Log Monitoring Test
+```bash
+# In one terminal: monitor logs
+tail -f scim.log &
+
+# In another terminal: make a test request
+curl -s "http://localhost:$SCIM_PORT/api/auth/token" \
+  -H "Content-Type: application/json" \
+  -d '{"clientId":"scim_client","clientSecret":"scim_secret","grantType":"client_credentials"}'
+
+# You should see real-time logs like:
+# info: ScimServiceProvider.Controllers.AuthController[0]
+#       🔐 Auth token request received from client: scim_client
+# info: ScimServiceProvider.Controllers.AuthController[0]
+#       ✅ Authentication successful for client: scim_client  
+# info: ScimServiceProvider.Controllers.AuthController[0]
+#       🎫 JWT token generated successfully for client: scim_client, expires in 1 hour
+
+
+### Step 2: Set Up Environment Variables (After Tunnel is Created)
 
 **Set common environment variables for testing:**
 ```bash
@@ -238,7 +190,7 @@ echo "  SCIM_BASE_URL: $SCIM_BASE_URL"
 echo "  CUSTOMER_URL: $CUSTOMER_URL"
 ```
 
-### Step 4: Test Public Tunnel Access
+### Step 3: Test Public Tunnel Access
 
 ```bash
 # Test that public tunnel works
@@ -282,7 +234,7 @@ echo "$TENANT_RESPONSE" | jq '.'
 
 export TENANT_ID="test-tenant"
 echo "✅ Tenant created successfully"
-```
+
 echo "Creating test tenant..."
 TENANT_RESPONSE=$(curl -s -H "Authorization: Bearer $TOKEN" -X POST "$CUSTOMER_URL" \
   -H "Content-Type: application/json" \
@@ -303,8 +255,13 @@ export TENANT_ID="test-tenant"
 ```bash
 # Test Service Provider Configuration
 echo "=== Testing Service Provider Configuration ==="
-curl -s -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT_ID" \
+curl -s -H "Authorization: Bearer $TOKEN" \
   "$SCIM_BASE_URL/ServiceProviderConfig" | jq '.authenticationSchemes[0]'
+
+# Test Schemas endpoint
+echo "=== Testing Schemas Endpoint ==="
+curl -s -H "Authorization: Bearer $TOKEN" \
+  "${TUNNEL_URL}Schemas" | jq '.totalResults'
 
 # List existing users
 echo "=== Listing Current Users ==="
@@ -416,8 +373,13 @@ echo "✅ Tenant created/verified"
 echo "🧪 Testing SCIM endpoints..."
 
 echo "  📋 Service Provider Config:"
-curl -s -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT_ID" \
+curl -s -H "Authorization: Bearer $TOKEN" \
   "$SCIM_BASE_URL/ServiceProviderConfig" | jq '.authenticationSchemes[0].name'
+
+echo "  📄 Schemas:"
+SCHEMAS_COUNT=$(curl -s -H "Authorization: Bearer $TOKEN" \
+  "${TUNNEL_URL}Schemas" | jq '.totalResults // 0')
+echo "    Found $SCHEMAS_COUNT schemas"
 
 echo "  👥 Current users:"
 USER_COUNT=$(curl -s -H "Authorization: Bearer $TOKEN" -H "X-Tenant-ID: $TENANT_ID" \
@@ -472,8 +434,8 @@ echo "Current TUNNEL_URL: $TUNNEL_URL"
 # For Codespaces, reset the URL
 export TUNNEL_URL="https://$CODESPACE_NAME-5000.app.github.dev"
 
-# For Dev Tunnels CLI, get URL from tunnel
-TUNNEL_URL=$(devtunnel show $TUNNEL_ID --output json | jq -r '.endpoints[0].hostRelayUri')
+# For Dev Tunnels CLI, get URL from tunnel (remove trailing slash)
+TUNNEL_URL=$(devtunnel show $TUNNEL_ID --output json | jq -r '.endpoints[0].hostRelayUri | rtrimstr("/")')
 ```
 
 **3. Port Issues:**
@@ -508,10 +470,10 @@ If you get "address already in use" for port 5000:
 
 ```bash
 # Option A: Use a different port
-dotnet run --urls="http://0.0.0.0:5001"
+dotnet run --urls="http://0.0.0.0:5000"
 
 # Update your environment variables for the new port
-export TUNNEL_URL="http://localhost:5001"  # or for public: https://$CODESPACE_NAME-5001.app.github.dev
+export TUNNEL_URL="http://localhost:5000"
 export AUTH_URL="$TUNNEL_URL/api/auth/token"
 export SCIM_BASE_URL="$TUNNEL_URL/scim/v2"
 export CUSTOMER_URL="$TUNNEL_URL/api/customers"
@@ -563,6 +525,101 @@ echo "  Secret Token: $TOKEN"
 1. **Tenant URL**: `$SCIM_BASE_URL` (e.g., `https://abc123-5000.devtunnels.ms/scim/v2`)
 2. **Secret Token**: Use the `$TOKEN` value from authentication
 3. **Test Connection**: Azure AD will connect to your SCIM service via the tunnel
+
+## 🛑 Cleanup: Stopping Services After Testing
+
+**Important**: After you finish testing, make sure to clean up running services to free up resources.
+
+### Stop SCIM Service
+
+If you started the SCIM service in the background (with `&`), stop it using the process ID:
+
+```bash
+# If you saved the process ID when starting the service
+kill $SCIM_PID
+
+# Or find and kill all dotnet processes running the SCIM service
+pkill -f "dotnet.*run"
+
+# Or kill processes using your SCIM port
+fuser -k $SCIM_PORT/tcp 2>/dev/null || echo "No processes found on port $SCIM_PORT"
+
+# Clean up log file (optional)
+rm -f scim.log
+
+# Verify the service is stopped
+if curl -s "http://localhost:$SCIM_PORT" > /dev/null 2>&1; then
+  echo "⚠️  SCIM service still running on port $SCIM_PORT"
+else
+  echo "✅ SCIM service stopped successfully"
+fi
+```
+
+### Stop Dev Tunnels (if using CLI)
+
+```bash
+
+# List and clean up any remaining tunnels
+devtunnel list
+devtunnel delete $TUNNEL_ID
+
+echo "✅ Dev tunnel stopped and cleaned up"
+```
+
+### Close GitHub Codespaces Port Forwarding
+
+If using GitHub Codespaces port forwarding:
+
+1. **In VS Code**: 
+   - Go to the "PORTS" tab
+   - Right-click on your port (e.g., `5000`)
+   - Select "Remove Port" or change visibility back to "Private"
+
+2. **Or set port to private via command:**
+   ```bash
+   # The port will become private when the service stops
+   echo "Port forwarding will stop automatically when service stops"
+   ```
+
+### Complete Cleanup Script
+
+```bash
+#!/bin/bash
+echo "🧹 Cleaning up SCIM services..."
+
+# Stop SCIM service
+if [ ! -z "$SCIM_PID" ]; then
+  kill -9 $SCIM_PID 2>/dev/null && echo "✅ Stopped SCIM service (PID: $SCIM_PID)"
+else
+  # Try alternative cleanup methods
+  pkill -f "dotnet.*run" && echo "✅ Stopped dotnet run processes"
+  
+  if [ ! -z "$SCIM_PORT" ]; then
+    fuser -k $SCIM_PORT/tcp 2>/dev/null && echo "✅ Freed up port $SCIM_PORT"
+  fi
+fi
+
+# Stop dev tunnel if using CLI
+if [ ! -z "$TUNNEL_ID" ]; then
+  devtunnel delete $TUNNEL_ID 2>/dev/null && echo "✅ Deleted dev tunnel"
+fi
+
+# Clear environment variables
+unset TUNNEL_URL SCIM_PORT AUTH_URL SCIM_BASE_URL CUSTOMER_URL TOKEN TENANT_ID SCIM_PID TUNNEL_ID
+echo "✅ Cleared environment variables"
+
+echo ""
+echo "🎉 Cleanup complete! All SCIM services and tunnels have been stopped."
+echo "Your system resources are now free for other tasks."
+```
+
+Save this as `cleanup-scim.sh` and run it when you're done testing:
+
+```bash
+chmod +x cleanup-scim.sh
+./cleanup-scim.sh
+```
+
 
 ## Alternative Installation Methods
 

@@ -22,7 +22,10 @@ namespace ScimServiceProvider.Tests.Controllers
         {
             _testUsers = ScimTestDataGenerator.GenerateUsers(10);
             _mockUserService = MockServiceProviders.CreateMockUserService(_testUsers);
-            _controller = new UsersController(_mockUserService.Object);
+            
+            // Create mock logger
+            var mockLogger = new Mock<ILogger<UsersController>>();
+            _controller = new UsersController(_mockUserService.Object, mockLogger.Object);
 
             // Setup controller context with authentication
             SetupControllerContext();
