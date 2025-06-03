@@ -125,6 +125,8 @@ Authorization: Bearer {admin-token}
 
 When making requests to the SCIM API, specify the tenant context using either:
 
+**Note**: Tenant context is only required for resource endpoints (`/scim/v2/Users`, `/scim/v2/Groups`). Service discovery endpoints (`/Schemas`, `/scim/v2/ServiceProviderConfig`, `/scim/v2/ResourceTypes`) do not require tenant headers as they return global service information.
+
 **Option 1: HTTP Header**
 
 ```http

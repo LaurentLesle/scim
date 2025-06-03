@@ -83,7 +83,7 @@ This project implements a complete SCIM (System for Cross-domain Identity Manage
 #### Service Discovery
 - `GET /scim/v2/ServiceProviderConfig` - Service capabilities
 - `GET /scim/v2/ResourceTypes` - Available resource types
-- `GET /scim/v2/Schemas` - SCIM schemas
+- `GET /Schemas` - SCIM schemas
 
 ## 🔧 Technology Stack
 

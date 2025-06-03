@@ -40,7 +40,9 @@ See the [Architecture Diagram](docs/architecture_diagram.md) for a visual repres
 ### Service Discovery
 - `GET /scim/v2/ServiceProviderConfig` - Service provider configuration
 - `GET /scim/v2/ResourceTypes` - Available resource types
-- `GET /scim/v2/Schemas` - SCIM schemas
+- `GET /Schemas` - SCIM schemas
+
+> **Note:** Service discovery endpoints do not require tenant headers (`X-Tenant-ID`) as they return global service information. Only resource endpoints (`/scim/v2/Users`, `/scim/v2/Groups`) require tenant context.
 
 ## Getting Started
 
