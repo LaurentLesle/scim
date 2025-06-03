@@ -427,5 +427,73 @@ namespace ScimServiceProvider.Tests.Controllers
             var returnedGroup = createdResult.Value.Should().BeOfType<ScimGroup>().Subject;
             returnedGroup.Members.Should().HaveCount(1);
         }
+
+        [Fact]
+        public async Task GetGroup_Should_Not_Include_Members_Property_In_Response()
+        {
+            // Arrange
+            var testGroup = _testGroups.First();
+            testGroup.Members = new List<GroupMember> {
+                new GroupMember { Value = "user1", Display = "User 1" },
+                new GroupMember { Value = "user2", Display = "User 2" }
+            };
+            _mockGroupService.Setup(s => s.GetGroupAsync(testGroup.Id!, _testCustomerId))
+                .ReturnsAsync(testGroup);
+
+            // Act
+            var result = await _controller.GetGroup(testGroup.Id!);
+
+            // Assert
+            result.Result.Should().BeOfType<OkObjectResult>();
+            var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+            var json = System.Text.Json.JsonSerializer.Serialize(okResult.Value);
+            json.Should().NotContain("\"members\"");
+        }
+
+        [Fact]
+        public async Task PatchGroup_WithMemberRemoveOperation_RemovesMemberCorrectly()
+        {
+            // Arrange
+            var user1 = _testUsers[0];
+            var user2 = _testUsers[1];
+            var group = ScimTestDataGenerator.GenerateGroup(members: new List<ScimUser> { user1, user2 });
+            _mockGroupService.Setup(s => s.GetGroupAsync(group.Id!, _testCustomerId)).ReturnsAsync(group);
+            _mockGroupService.Setup(s => s.PatchGroupAsync(group.Id!, It.IsAny<ScimPatchRequest>(), _testCustomerId))
+                .ReturnsAsync((string id, ScimPatchRequest req, string custId) => {
+                    // Simulate removal
+                    var op = req.Operations.First();
+                    string? memberId = null;
+                    if (!string.IsNullOrEmpty(op.Path))
+                    {
+                        var split = op.Path.Split('"');
+                        if (split.Length > 1)
+                            memberId = split[1];
+                    }
+                    group.Members = group.Members?.Where(m => m.Value != memberId).ToList();
+                    return group;
+                });
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new()
+                    {
+                        Op = "remove",
+                        Path = $"members[value eq \"{user1.Id}\"]"
+                    }
+                }
+            };
+
+            // Act
+            var result = await _controller.PatchGroup(group.Id!, patchRequest);
+
+            // Assert
+            result.Result.Should().BeOfType<OkObjectResult>();
+            var okResult = result.Result as OkObjectResult;
+            var returnedGroup = okResult!.Value as ScimGroup;
+            returnedGroup!.Members.Should().ContainSingle(m => m.Value == user2.Id);
+            returnedGroup.Members.Should().NotContain(m => m.Value == user1.Id);
+        }
     }
 }

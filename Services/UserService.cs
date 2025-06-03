@@ -135,6 +135,19 @@ namespace ScimServiceProvider.Services
             return existingUser;
         }
 
+        // Ensure all collections and objects are initialized before returning the user
+        private void EnsureUserCollectionsInitialized(ScimUser user)
+        {
+            if (user.Emails == null) user.Emails = new List<Email>();
+            if (user.PhoneNumbers == null) user.PhoneNumbers = new List<PhoneNumber>();
+            if (user.Addresses == null) user.Addresses = new List<Address>();
+            if (user.Groups == null) user.Groups = new List<GroupMembership>();
+            if (user.Roles == null) user.Roles = new List<Role>();
+            if (user.Name == null) user.Name = new Name();
+            if (user.EnterpriseUser == null) user.EnterpriseUser = new EnterpriseUser();
+            if (user.Meta == null) user.Meta = new ScimMeta();
+        }
+
         public async Task<ScimUser?> PatchUserAsync(string id, ScimPatchRequest patchRequest, string customerId)
         {
             var user = await _context.Users
@@ -145,21 +158,25 @@ namespace ScimServiceProvider.Services
 
             foreach (var operation in patchRequest.Operations)
             {
-                ApplyPatchOperation(user, operation);
+                switch (operation.Op.ToLower())
+                {
+                    case "replace":
+                        ApplyReplaceOperation(user, operation);
+                        break;
+                    case "add":
+                        ApplyAddOperation(user, operation);
+                        break;
+                    case "remove":
+                        ApplyRemoveOperation(user, operation);
+                        break;
+                }
             }
 
             user.LastModified = DateTime.UtcNow;
             user.Meta.LastModified = user.LastModified;
-
-            // Ensure proper schemas are set after patching
             user.Schemas = new List<string> { "urn:ietf:params:scim:schemas:core:2.0:User" };
-            if (user.EnterpriseUser != null)
-            {
-                if (!user.Schemas.Contains("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"))
-                {
-                    user.Schemas.Add("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
-                }
-            }
+
+            EnsureUserCollectionsInitialized(user);
 
             await _context.SaveChangesAsync();
             return user;
@@ -230,32 +247,66 @@ namespace ScimServiceProvider.Services
                         user.Timezone = updatedUser.Timezone;
                         user.ProfileUrl = updatedUser.ProfileUrl;
                         user.UserType = updatedUser.UserType;
-                        user.Emails = updatedUser.Emails;
-                        user.PhoneNumbers = updatedUser.PhoneNumbers;
-                        user.Addresses = updatedUser.Addresses;
-                        user.Roles = updatedUser.Roles;
+                        // Only update collections if they are provided and not empty
+                        if (updatedUser.Emails != null && updatedUser.Emails.Any()) user.Emails = updatedUser.Emails;
+                        if (updatedUser.PhoneNumbers != null && updatedUser.PhoneNumbers.Any()) user.PhoneNumbers = updatedUser.PhoneNumbers;
+                        if (updatedUser.Addresses != null && updatedUser.Addresses.Any()) user.Addresses = updatedUser.Addresses;
+                        if (updatedUser.Roles != null && updatedUser.Roles.Any()) user.Roles = updatedUser.Roles;
                         user.EnterpriseUser = updatedUser.EnterpriseUser;
                     }
                 }
                 else if (operation.Value is System.Text.Json.JsonElement elem && elem.ValueKind == System.Text.Json.JsonValueKind.Object)
                 {
+                    // Handle dot-notated keys for name fields and enterprise extension attributes
+                    foreach (var prop in elem.EnumerateObject())
+                    {
+                        if (prop.Name.StartsWith("name.", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (user.Name == null) user.Name = new Name();
+                            var sub = prop.Name.Substring(5).ToLower();
+                            switch (sub)
+                            {
+                                case "givenname": user.Name.GivenName = prop.Value.GetString(); break;
+                                case "familyname": user.Name.FamilyName = prop.Value.GetString(); break;
+                                case "formatted": user.Name.Formatted = prop.Value.GetString(); break;
+                                case "middlename": user.Name.MiddleName = prop.Value.GetString(); break;
+                                case "honorificprefix": user.Name.HonorificPrefix = prop.Value.GetString(); break;
+                                case "honorificsuffix": user.Name.HonorificSuffix = prop.Value.GetString(); break;
+                            }
+                        }
+                        else if (prop.Name.StartsWith("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (user.EnterpriseUser == null) user.EnterpriseUser = new EnterpriseUser();
+                            var enterpriseAttr = prop.Name.Substring("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:".Length).ToLower();
+                            switch (enterpriseAttr)
+                            {
+                                case "employeenumber": user.EnterpriseUser.EmployeeNumber = prop.Value.GetString(); break;
+                                case "department": user.EnterpriseUser.Department = prop.Value.GetString(); break;
+                                case "costcenter": user.EnterpriseUser.CostCenter = prop.Value.GetString(); break;
+                                case "organization": user.EnterpriseUser.Organization = prop.Value.GetString(); break;
+                                case "division": user.EnterpriseUser.Division = prop.Value.GetString(); break;
+                                case "manager": user.EnterpriseUser.Manager = prop.Value.GetString(); break;
+                            }
+                        }
+                    }
                     var updatedUser = System.Text.Json.JsonSerializer.Deserialize<ScimUser>(elem.GetRawText());
                     if (updatedUser != null)
                     {
                         user.DisplayName = updatedUser.DisplayName;
                         user.Title = updatedUser.Title;
                         user.PreferredLanguage = updatedUser.PreferredLanguage;
-                        user.Name = updatedUser.Name;
+                        // Do not overwrite user.Name here, as we just set it above
                         user.NickName = updatedUser.NickName;
                         user.Locale = updatedUser.Locale;
                         user.Timezone = updatedUser.Timezone;
                         user.ProfileUrl = updatedUser.ProfileUrl;
                         user.UserType = updatedUser.UserType;
-                        user.Emails = updatedUser.Emails;
-                        user.PhoneNumbers = updatedUser.PhoneNumbers;
-                        user.Addresses = updatedUser.Addresses;
-                        user.Roles = updatedUser.Roles;
-                        user.EnterpriseUser = updatedUser.EnterpriseUser;
+                        // Only update collections if they are provided and not empty
+                        if (updatedUser.Emails != null && updatedUser.Emails.Any()) user.Emails = updatedUser.Emails;
+                        if (updatedUser.PhoneNumbers != null && updatedUser.PhoneNumbers.Any()) user.PhoneNumbers = updatedUser.PhoneNumbers;
+                        if (updatedUser.Addresses != null && updatedUser.Addresses.Any()) user.Addresses = updatedUser.Addresses;
+                        if (updatedUser.Roles != null && updatedUser.Roles.Any()) user.Roles = updatedUser.Roles;
+                        // Do not overwrite EnterpriseUser here, as we just set it above
                     }
                 }
                 else if (operation.Value is Dictionary<string, object> dict)
@@ -263,9 +314,42 @@ namespace ScimServiceProvider.Services
                     // For each key-value, treat as a separate add operation
                     foreach (var kvp in dict)
                     {
-                        var subOp = new PatchOperation { Op = "add", Path = kvp.Key, Value = kvp.Value };
-                        ApplyAddOperation(user, subOp);
+                        // Special handling for name.* keys
+                        if (kvp.Key.StartsWith("name.", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (user.Name == null) user.Name = new Name();
+                            var sub = kvp.Key.Substring(5).ToLower();
+                            switch (sub)
+                            {
+                                case "givenname": user.Name.GivenName = kvp.Value?.ToString(); break;
+                                case "familyname": user.Name.FamilyName = kvp.Value?.ToString(); break;
+                                case "formatted": user.Name.Formatted = kvp.Value?.ToString(); break;
+                                case "middlename": user.Name.MiddleName = kvp.Value?.ToString(); break;
+                                case "honorificprefix": user.Name.HonorificPrefix = kvp.Value?.ToString(); break;
+                                case "honorificsuffix": user.Name.HonorificSuffix = kvp.Value?.ToString(); break;
+                            }
+                        }
+                        else if (kvp.Key.StartsWith("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (user.EnterpriseUser == null) user.EnterpriseUser = new EnterpriseUser();
+                            var enterpriseAttr = kvp.Key.Substring("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:".Length).ToLower();
+                            switch (enterpriseAttr)
+                            {
+                                case "employeenumber": user.EnterpriseUser.EmployeeNumber = kvp.Value?.ToString(); break;
+                                case "department": user.EnterpriseUser.Department = kvp.Value?.ToString(); break;
+                                case "costcenter": user.EnterpriseUser.CostCenter = kvp.Value?.ToString(); break;
+                                case "organization": user.EnterpriseUser.Organization = kvp.Value?.ToString(); break;
+                                case "division": user.EnterpriseUser.Division = kvp.Value?.ToString(); break;
+                                case "manager": user.EnterpriseUser.Manager = kvp.Value?.ToString(); break;
+                            }
+                        }
+                        else
+                        {
+                            var subOp = new PatchOperation { Op = "add", Path = kvp.Key, Value = kvp.Value };
+                            ApplyAddOperation(user, subOp);
+                        }
                     }
+                    return;
                 }
                 return;
             }
@@ -302,10 +386,16 @@ namespace ScimServiceProvider.Services
                     if (email == null)
                     {
                         email = new Email { Type = filterAttr == "type" ? filterValue : "work" };
+                        // Set the property being patched
+                        if (attr == "value") email.Value = operation.Value?.ToString() ?? string.Empty;
+                        else if (attr == "primary") email.Primary = operation.Value is bool b ? b : bool.TryParse(operation.Value?.ToString(), out var pb) && pb;
                         user.Emails.Add(email);
                     }
-                    if (attr == "value") email.Value = operation.Value?.ToString() ?? string.Empty;
-                    else if (attr == "primary") email.Primary = operation.Value is bool b ? b : bool.TryParse(operation.Value?.ToString(), out var pb) && pb;
+                    else
+                    {
+                        if (attr == "value") email.Value = operation.Value?.ToString() ?? string.Empty;
+                        else if (attr == "primary") email.Primary = operation.Value is bool b ? b : bool.TryParse(operation.Value?.ToString(), out var pb) && pb;
+                    }
                 }
                 else if (collection == "phonenumbers")
                 {
@@ -339,42 +429,52 @@ namespace ScimServiceProvider.Services
                 else if (collection == "roles")
                 {
                     if (user.Roles == null) user.Roles = new List<Role>();
-                    // Support filter on any attribute, not just primary
+                    
+                    // Find existing role based on filter (e.g., primary eq "True")
                     Role? role = null;
-                    foreach (var r in user.Roles)
+                    if (filterAttr.Equals("primary", StringComparison.OrdinalIgnoreCase))
                     {
-                        var prop = typeof(Role).GetProperty(System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(filterAttr));
-                        if (prop != null && (prop.GetValue(r)?.ToString() ?? "") == filterValue)
-                        {
-                            role = r;
-                            break;
-                        }
+                        role = user.Roles.FirstOrDefault(r => string.Equals(r.Primary, filterValue, StringComparison.OrdinalIgnoreCase));
                     }
+                    else if (filterAttr.Equals("type", StringComparison.OrdinalIgnoreCase))
+                    {
+                        role = user.Roles.FirstOrDefault(r => string.Equals(r.Type, filterValue, StringComparison.OrdinalIgnoreCase));
+                    }
+                    else if (filterAttr.Equals("value", StringComparison.OrdinalIgnoreCase))
+                    {
+                        role = user.Roles.FirstOrDefault(r => string.Equals(r.Value, filterValue, StringComparison.OrdinalIgnoreCase));
+                    }
+                    else if (filterAttr.Equals("display", StringComparison.OrdinalIgnoreCase))
+                    {
+                        role = user.Roles.FirstOrDefault(r => string.Equals(r.Display, filterValue, StringComparison.OrdinalIgnoreCase));
+                    }
+                    
+                    // If no matching role found, create a new one
                     if (role == null)
                     {
                         role = new Role();
-                        // Set the filter attribute
-                        var prop = typeof(Role).GetProperty(System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(filterAttr));
-                        if (prop != null)
-                        {
-                            prop.SetValue(role, filterValue);
-                        }
-                        // Set the target attribute
-                        var attrProp = typeof(Role).GetProperty(System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(attr));
-                        if (attrProp != null)
-                        {
-                            attrProp.SetValue(role, operation.Value?.ToString());
-                        }
+                        // Set the filter attribute on the new role
+                        if (filterAttr.Equals("primary", StringComparison.OrdinalIgnoreCase))
+                            role.Primary = filterValue;
+                        else if (filterAttr.Equals("type", StringComparison.OrdinalIgnoreCase))
+                            role.Type = filterValue;
+                        else if (filterAttr.Equals("value", StringComparison.OrdinalIgnoreCase))
+                            role.Value = filterValue;
+                        else if (filterAttr.Equals("display", StringComparison.OrdinalIgnoreCase))
+                            role.Display = filterValue;
+                        
                         user.Roles.Add(role);
                     }
-                    else
-                    {
-                        var attrProp = typeof(Role).GetProperty(System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(attr));
-                        if (attrProp != null)
-                        {
-                            attrProp.SetValue(role, operation.Value?.ToString());
-                        }
-                    }
+                    
+                    // Set the target attribute
+                    if (attr.Equals("display", StringComparison.OrdinalIgnoreCase))
+                        role.Display = operation.Value?.ToString();
+                    else if (attr.Equals("value", StringComparison.OrdinalIgnoreCase))
+                        role.Value = operation.Value?.ToString() ?? string.Empty;
+                    else if (attr.Equals("type", StringComparison.OrdinalIgnoreCase))
+                        role.Type = operation.Value?.ToString() ?? string.Empty;
+                    else if (attr.Equals("primary", StringComparison.OrdinalIgnoreCase))
+                        role.Primary = operation.Value?.ToString();
                 }
                 return;
             }
@@ -428,8 +528,49 @@ namespace ScimServiceProvider.Services
                 {
                     user.EnterpriseUser.Manager = null;
                 }
+                return;
             }
-            // Add more remove operations as needed
+
+            // Handle multi-valued attribute removal for roles (e.g., roles[primary eq "True"])
+            var mvRemoveMatch = System.Text.RegularExpressions.Regex.Match(path, @"^(\w+)\s*\[\s*(\w+)\s+eq\s+""([\w ]+)""\s*\]$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (mvRemoveMatch.Success)
+            {
+                var collection = mvRemoveMatch.Groups[1].Value.ToLower();
+                var filterAttr = mvRemoveMatch.Groups[2].Value;
+                var filterValue = mvRemoveMatch.Groups[3].Value;
+                if (collection == "roles" && user.Roles != null)
+                {
+                    var toRemove = user.Roles.Where(r => {
+                        var prop = typeof(Role).GetProperty(filterAttr, System.Reflection.BindingFlags.IgnoreCase | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                        if (prop == null) return false;
+                        var rawVal = prop.GetValue(r);
+                        var filter = (filterValue ?? string.Empty).Trim().ToLowerInvariant();
+                        if (filterAttr.Equals("primary", System.StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Special case for Primary: compare as string and as bool
+                            var valStr = (rawVal?.ToString() ?? string.Empty).Trim().ToLowerInvariant();
+                            if (valStr == filter) return true;
+                            if ((valStr == "true" && filter == "true") || (valStr == "false" && filter == "false")) return true;
+                            if (bool.TryParse(valStr, out var valBool) && bool.TryParse(filter, out var filterBool))
+                                return valBool == filterBool;
+                        }
+                        else
+                        {
+                            var val = (rawVal?.ToString() ?? string.Empty).Trim().ToLowerInvariant();
+                            if (val == filter) return true;
+                        }
+                        return false;
+                    }).ToList();
+                    foreach (var role in toRemove)
+                    {
+                        user.Roles.Remove(role);
+                        // If using EF and roles are tracked, also remove from context
+                        try { _context.Entry(role).State = EntityState.Deleted; } catch { /* ignore if not tracked */ }
+                    }
+                }
+                // Add similar logic for other collections if needed
+                return;
+            }
         }
 
         private void ApplyReplaceOperation(ScimUser user, PatchOperation operation)
@@ -535,25 +676,42 @@ namespace ScimServiceProvider.Services
                 {
                     if (user.Roles != null)
                     {
-                        var role = user.Roles.FirstOrDefault(r =>
-                            {
-                                var prop = typeof(Role).GetProperty(System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(filterAttr));
-                                return prop != null && (prop.GetValue(r)?.ToString() ?? "") == filterValue;
-                            });
+                        // Use explicit property matching instead of reflection for consistency
+                        Role? role = null;
+                        if (filterAttr.Equals("primary", StringComparison.OrdinalIgnoreCase))
+                        {
+                            role = user.Roles.FirstOrDefault(r => string.Equals(r.Primary, filterValue, StringComparison.OrdinalIgnoreCase));
+                        }
+                        else if (filterAttr.Equals("type", StringComparison.OrdinalIgnoreCase))
+                        {
+                            role = user.Roles.FirstOrDefault(r => string.Equals(r.Type, filterValue, StringComparison.OrdinalIgnoreCase));
+                        }
+                        else if (filterAttr.Equals("value", StringComparison.OrdinalIgnoreCase))
+                        {
+                            role = user.Roles.FirstOrDefault(r => string.Equals(r.Value, filterValue, StringComparison.OrdinalIgnoreCase));
+                        }
+                        else if (filterAttr.Equals("display", StringComparison.OrdinalIgnoreCase))
+                        {
+                            role = user.Roles.FirstOrDefault(r => string.Equals(r.Display, filterValue, StringComparison.OrdinalIgnoreCase));
+                        }
+                        
                         if (role != null)
                         {
-                            var attrProp = typeof(Role).GetProperty(System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(attr));
-                            if (attrProp != null)
-                            {
-                                attrProp.SetValue(role, operation.Value?.ToString());
-                            }
+                            if (attr.Equals("display", StringComparison.OrdinalIgnoreCase))
+                                role.Display = operation.Value?.ToString();
+                            else if (attr.Equals("value", StringComparison.OrdinalIgnoreCase))
+                                role.Value = operation.Value?.ToString() ?? string.Empty;
+                            else if (attr.Equals("type", StringComparison.OrdinalIgnoreCase))
+                                role.Type = operation.Value?.ToString() ?? string.Empty;
+                            else if (attr.Equals("primary", StringComparison.OrdinalIgnoreCase))
+                                role.Primary = operation.Value?.ToString();
                         }
                     }
                 }
                 return;
             }
-            // Handle enterprise extension fields
-            var entPrefix = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:user:";
+            // Handle enterprise extension fields (case-insensitive)
+            var entPrefix = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:";
             if (path.StartsWith(entPrefix, StringComparison.OrdinalIgnoreCase))
             {
                 if (user.EnterpriseUser == null) user.EnterpriseUser = new EnterpriseUser();

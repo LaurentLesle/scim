@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using ScimServiceProvider.Models;
 using Newtonsoft.Json;
 
@@ -49,7 +50,11 @@ namespace ScimServiceProvider.Data
                 entity.Property(e => e.Schemas)
                     .HasConversion(
                         v => JsonConvert.SerializeObject(v),
-                        v => JsonConvert.DeserializeObject<List<string>>(v) ?? new List<string>());
+                        v => JsonConvert.DeserializeObject<List<string>>(v) ?? new List<string>(),
+                        new ValueComparer<List<string>>(
+                            (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
+                            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                            c => c.ToList()));
                         
                 entity.Property(e => e.Name)
                     .HasConversion(
@@ -59,27 +64,47 @@ namespace ScimServiceProvider.Data
                 entity.Property(e => e.Emails)
                     .HasConversion(
                         v => JsonConvert.SerializeObject(v),
-                        v => JsonConvert.DeserializeObject<List<Email>>(v) ?? new List<Email>());
+                        v => JsonConvert.DeserializeObject<List<Email>>(v) ?? new List<Email>(),
+                        new ValueComparer<List<Email>>(
+                            (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
+                            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                            c => c.ToList()));
 
                 entity.Property(e => e.PhoneNumbers)
                     .HasConversion(
                         v => JsonConvert.SerializeObject(v),
-                        v => JsonConvert.DeserializeObject<List<PhoneNumber>>(v) ?? new List<PhoneNumber>());
+                        v => JsonConvert.DeserializeObject<List<PhoneNumber>>(v) ?? new List<PhoneNumber>(),
+                        new ValueComparer<List<PhoneNumber>>(
+                            (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
+                            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                            c => c.ToList()));
 
                 entity.Property(e => e.Addresses)
                     .HasConversion(
                         v => JsonConvert.SerializeObject(v),
-                        v => JsonConvert.DeserializeObject<List<Address>>(v) ?? new List<Address>());
+                        v => JsonConvert.DeserializeObject<List<Address>>(v) ?? new List<Address>(),
+                        new ValueComparer<List<Address>>(
+                            (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
+                            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                            c => c.ToList()));
 
                 entity.Property(e => e.Groups)
                     .HasConversion(
                         v => JsonConvert.SerializeObject(v),
-                        v => JsonConvert.DeserializeObject<List<GroupMembership>>(v) ?? new List<GroupMembership>());
+                        v => JsonConvert.DeserializeObject<List<GroupMembership>>(v) ?? new List<GroupMembership>(),
+                        new ValueComparer<List<GroupMembership>>(
+                            (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
+                            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                            c => c.ToList()));
 
                 entity.Property(e => e.Roles)
                     .HasConversion(
                         v => JsonConvert.SerializeObject(v),
-                        v => JsonConvert.DeserializeObject<List<Role>>(v) ?? new List<Role>());
+                        v => JsonConvert.DeserializeObject<List<Role>>(v) ?? new List<Role>(),
+                        new ValueComparer<List<Role>>(
+                            (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
+                            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                            c => c.ToList()));
 
                 entity.Property(e => e.EnterpriseUser)
                     .HasConversion(
@@ -102,7 +127,11 @@ namespace ScimServiceProvider.Data
                 entity.Property(e => e.Members)
                     .HasConversion(
                         v => JsonConvert.SerializeObject(v),
-                        v => JsonConvert.DeserializeObject<List<GroupMember>>(v) ?? new List<GroupMember>());
+                        v => JsonConvert.DeserializeObject<List<GroupMember>>(v) ?? new List<GroupMember>(),
+                        new ValueComparer<List<GroupMember>>(
+                            (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
+                            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                            c => c.ToList()));
 
                 entity.Property(e => e.Meta)
                     .HasConversion(

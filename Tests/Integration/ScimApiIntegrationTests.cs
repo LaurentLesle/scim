@@ -16,7 +16,7 @@ using Xunit;
 
 namespace ScimServiceProvider.Tests.Integration
 {
-    public class CustomWebApplicationFactory : WebApplicationFactory<Program>
+    public class CustomWebApplicationFactory : WebApplicationFactory<ScimServiceProvider.Program>
     {
         // Define test tenant ID to match the one used in tests
         public const string TestTenantId = "test-tenant-id";

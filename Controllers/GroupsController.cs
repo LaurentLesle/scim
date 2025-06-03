@@ -105,6 +105,9 @@ namespace ScimServiceProvider.Controllers
                     });
                 }
 
+                // Exclude members from response (set to null so it's omitted from JSON)
+                group.Members = null;
+
                 _logger.LogInformation("✅ Group retrieved: {GroupId} ({DisplayName}) for customer: {CustomerId}", 
                     id, group.DisplayName, customerId);
                 return Ok(group);

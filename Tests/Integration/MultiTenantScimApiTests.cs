@@ -14,12 +14,12 @@ using Xunit;
 
 namespace ScimServiceProvider.Tests.Integration
 {
-    public class MultiTenantScimApiTests : IClassFixture<WebApplicationFactory<Program>>
+    public class MultiTenantScimApiTests : IClassFixture<WebApplicationFactory<ScimServiceProvider.Program>>
     {
-        private readonly WebApplicationFactory<Program> _factory;
+        private readonly WebApplicationFactory<ScimServiceProvider.Program> _factory;
         private readonly HttpClient _client;
 
-        public MultiTenantScimApiTests(WebApplicationFactory<Program> factory)
+        public MultiTenantScimApiTests(WebApplicationFactory<ScimServiceProvider.Program> factory)
         {
             // Create a customized web application factory
             _factory = factory.WithWebHostBuilder(builder =>

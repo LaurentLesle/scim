@@ -113,7 +113,7 @@ namespace ScimServiceProvider.Models
         public string? HonorificSuffix { get; set; }
     }
 
-    public class Email
+    public class Email : IEquatable<Email>
     {
         [System.Text.Json.Serialization.JsonPropertyName("value")]
         public string Value { get; set; } = string.Empty;
@@ -126,9 +126,29 @@ namespace ScimServiceProvider.Models
         
         [System.Text.Json.Serialization.JsonPropertyName("primary")]
         public bool Primary { get; set; } = false;
+
+        public bool Equals(Email? other)
+        {
+            if (other is null) return false;
+            if (ReferenceEquals(this, other)) return true;
+            return Value == other.Value && 
+                   Display == other.Display && 
+                   Type == other.Type && 
+                   Primary == other.Primary;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return Equals(obj as Email);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Value, Display, Type, Primary);
+        }
     }
 
-    public class PhoneNumber
+    public class PhoneNumber : IEquatable<PhoneNumber>
     {
         [System.Text.Json.Serialization.JsonPropertyName("value")]
         public string Value { get; set; } = string.Empty;
@@ -141,9 +161,29 @@ namespace ScimServiceProvider.Models
         
         [System.Text.Json.Serialization.JsonPropertyName("primary")]
         public bool Primary { get; set; } = false;
+
+        public bool Equals(PhoneNumber? other)
+        {
+            if (other is null) return false;
+            if (ReferenceEquals(this, other)) return true;
+            return Value == other.Value && 
+                   Display == other.Display && 
+                   Type == other.Type && 
+                   Primary == other.Primary;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return Equals(obj as PhoneNumber);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Value, Display, Type, Primary);
+        }
     }
 
-    public class Address
+    public class Address : IEquatable<Address>
     {
         [System.Text.Json.Serialization.JsonPropertyName("formatted")]
         public string? Formatted { get; set; }
@@ -168,9 +208,33 @@ namespace ScimServiceProvider.Models
         
         [System.Text.Json.Serialization.JsonPropertyName("primary")]
         public bool Primary { get; set; } = false;
+
+        public bool Equals(Address? other)
+        {
+            if (other is null) return false;
+            if (ReferenceEquals(this, other)) return true;
+            return Formatted == other.Formatted && 
+                   StreetAddress == other.StreetAddress && 
+                   Locality == other.Locality && 
+                   Region == other.Region && 
+                   PostalCode == other.PostalCode && 
+                   Country == other.Country && 
+                   Type == other.Type && 
+                   Primary == other.Primary;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return Equals(obj as Address);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Formatted, StreetAddress, Locality, Region, PostalCode, Country, Type, Primary);
+        }
     }
 
-    public class GroupMembership
+    public class GroupMembership : IEquatable<GroupMembership>
     {
         [System.Text.Json.Serialization.JsonPropertyName("value")]
         public string Value { get; set; } = string.Empty;
@@ -180,9 +244,28 @@ namespace ScimServiceProvider.Models
         
         [System.Text.Json.Serialization.JsonPropertyName("type")]
         public string Type { get; set; } = "direct";
+
+        public bool Equals(GroupMembership? other)
+        {
+            if (other is null) return false;
+            if (ReferenceEquals(this, other)) return true;
+            return Value == other.Value && 
+                   Display == other.Display && 
+                   Type == other.Type;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return Equals(obj as GroupMembership);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Value, Display, Type);
+        }
     }
 
-    public class Role
+    public class Role : IEquatable<Role>
     {
         [System.Text.Json.Serialization.JsonPropertyName("value")]
         public string Value { get; set; } = string.Empty;
@@ -195,6 +278,26 @@ namespace ScimServiceProvider.Models
         
         [System.Text.Json.Serialization.JsonPropertyName("primary")]
         public string? Primary { get; set; }
+
+        public bool Equals(Role? other)
+        {
+            if (other is null) return false;
+            if (ReferenceEquals(this, other)) return true;
+            return Value == other.Value && 
+                   Display == other.Display && 
+                   Type == other.Type && 
+                   Primary == other.Primary;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return Equals(obj as Role);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Value, Display, Type, Primary);
+        }
     }
 
     public class EnterpriseUser

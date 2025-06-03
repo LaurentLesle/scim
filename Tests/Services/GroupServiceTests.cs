@@ -23,6 +23,107 @@ namespace ScimServiceProvider.Tests.Services
             _context.Dispose();
         }
 
+
+        [Fact]
+        public async Task PatchGroupAsync_RemoveMemberByValue_RemovesCorrectMember()
+        {
+            // Arrange
+            var member1 = new GroupMember { Value = "user-1", Display = "User 1", Type = "User" };
+            var member2 = new GroupMember { Value = "user-2", Display = "User 2", Type = "User" };
+            var group = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Test Group",
+                Members = new List<GroupMember> { member1, member2 },
+                CustomerId = _testCustomerId
+            };
+            _context.Groups.Add(group);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() { Op = "remove", Path = "members[value eq \"user-1\"]" }
+                }
+            };
+
+            // Act
+            var result = await _groupService.PatchGroupAsync(group.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.Members.Should().ContainSingle(m => m.Value == "user-2");
+            result.Members.Should().NotContain(m => m.Value == "user-1");
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_ReplaceDisplayOfMember_UpdatesMember()
+        {
+            // Arrange
+            var member = new GroupMember { Value = "user-1", Display = "User 1", Type = "User" };
+            var group = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Test Group",
+                Members = new List<GroupMember> { member },
+                CustomerId = _testCustomerId
+            };
+            _context.Groups.Add(group);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() { Op = "replace", Path = "members[value eq \"user-1\"].display", Value = "Updated User 1" }
+                }
+            };
+
+            // Act
+            var result = await _groupService.PatchGroupAsync(group.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.Members.Should().ContainSingle(m => m.Value == "user-1" && m.Display == "Updated User 1");
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_AddMultipleMembersAndUpdateOne_WorksCorrectly()
+        {
+            // Arrange
+            var group = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Test Group",
+                Members = new List<GroupMember>(),
+                CustomerId = _testCustomerId
+            };
+            _context.Groups.Add(group);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() { Op = "add", Path = "members", Value = new { value = "user-1", display = "User 1", type = "User" } },
+                    new() { Op = "add", Path = "members", Value = new { value = "user-2", display = "User 2", type = "User" } },
+                    new() { Op = "replace", Path = "members[value eq \"user-2\"].display", Value = "Updated User 2" }
+                }
+            };
+
+            // Act
+            var result = await _groupService.PatchGroupAsync(group.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.Members.Should().ContainSingle(m => m.Value == "user-1" && m.Display == "User 1");
+            result.Members.Should().ContainSingle(m => m.Value == "user-2" && m.Display == "Updated User 2");
+        }
+
         [Fact]
         public async Task GetGroupAsync_WithValidId_ReturnsGroup()
         {
@@ -387,5 +488,6 @@ namespace ScimServiceProvider.Tests.Services
             result.Resources.Should().HaveCount(1);
             result.Resources.First().DisplayName.Should().Be("engineering team");
         }
+
     }
 }

@@ -151,10 +151,42 @@ namespace ScimServiceProvider.Services
                     {
                         group.DisplayName = operation.Value?.ToString() ?? string.Empty;
                     }
+                    else if (operation.Path?.ToLower().StartsWith("members[") == true && operation.Path.Contains("]."))
+                    {
+                        // Handle member attribute replacement like members[value eq "user-2"].display
+                        var memberFilterMatch = Regex.Match(operation.Path, @"members\[value\s+eq\s+""([^""]+)""\]\.(\w+)", RegexOptions.IgnoreCase);
+                        if (memberFilterMatch.Success)
+                        {
+                            var memberId = memberFilterMatch.Groups[1].Value;
+                            var attributeName = memberFilterMatch.Groups[2].Value.ToLower();
+                            
+                            // Ensure Members is initialized
+                            if (group.Members == null)
+                                group.Members = new List<GroupMember>();
+                            
+                            // Find the member to update
+                            var memberToUpdate = group.Members.FirstOrDefault(m => m.Value == memberId);
+                            if (memberToUpdate != null)
+                            {
+                                switch (attributeName)
+                                {
+                                    case "display":
+                                        memberToUpdate.Display = operation.Value?.ToString() ?? string.Empty;
+                                        break;
+                                    case "type":
+                                        memberToUpdate.Type = operation.Value?.ToString() ?? "User";
+                                        break;
+                                }
+                            }
+                        }
+                    }
                     break;
                 case "add":
                     if (operation.Path?.ToLower() == "members")
                     {
+                        // Ensure Members is initialized
+                        if (group.Members == null)
+                            group.Members = new List<GroupMember>();
                         // Add member to group
                         if (operation.Value is GroupMember member)
                         {
@@ -169,7 +201,6 @@ namespace ScimServiceProvider.Services
                                 if (valueStr != null)
                                 {
                                     var jsonElement = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(valueStr);
-                                    
                                     var newMember = new GroupMember();
                                     if (jsonElement.TryGetProperty("value", out var valueProperty))
                                         newMember.Value = valueProperty.GetString() ?? string.Empty;
@@ -177,7 +208,6 @@ namespace ScimServiceProvider.Services
                                         newMember.Display = displayProperty.GetString() ?? string.Empty;
                                     if (jsonElement.TryGetProperty("type", out var typeProperty))
                                         newMember.Type = typeProperty.GetString() ?? "User";
-                                    
                                     if (!string.IsNullOrEmpty(newMember.Value))
                                     {
                                         group.Members.Add(newMember);
@@ -191,7 +221,6 @@ namespace ScimServiceProvider.Services
                                 var valueProp = valueType.GetProperty("value");
                                 var displayProp = valueType.GetProperty("display");
                                 var typeProp = valueType.GetProperty("type");
-
                                 if (valueProp != null)
                                 {
                                     var newMember = new GroupMember
@@ -200,7 +229,6 @@ namespace ScimServiceProvider.Services
                                         Display = displayProp?.GetValue(operation.Value)?.ToString() ?? string.Empty,
                                         Type = typeProp?.GetValue(operation.Value)?.ToString() ?? "User"
                                     };
-
                                     if (!string.IsNullOrEmpty(newMember.Value))
                                     {
                                         group.Members.Add(newMember);
@@ -213,6 +241,9 @@ namespace ScimServiceProvider.Services
                 case "remove":
                     if (operation.Path?.ToLower().StartsWith("members") == true)
                     {
+                        // Ensure Members is initialized
+                        if (group.Members == null)
+                            group.Members = new List<GroupMember>();
                         // Remove member from group
                         var memberMatch = Regex.Match(operation.Path, @"members\[value\s+eq\s+""([^""]+)""\]");
                         if (memberMatch.Success)

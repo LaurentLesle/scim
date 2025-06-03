@@ -120,4 +120,7 @@ using (var scope = app.Services.CreateScope())
 app.Run();
 
 // Make Program class public for integration tests
-public partial class Program { }
+namespace ScimServiceProvider 
+{
+    public partial class Program { }
+}

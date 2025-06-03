@@ -28,7 +28,8 @@ namespace ScimServiceProvider.Models
         public virtual Customer? Customer { get; set; }
         
         [System.Text.Json.Serialization.JsonPropertyName("members")]
-        public List<GroupMember> Members { get; set; } = new();
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public List<GroupMember>? Members { get; set; }
         
         [System.Text.Json.Serialization.JsonPropertyName("meta")]
         public ScimMeta Meta { get; set; } = new();
