@@ -211,41 +211,207 @@ namespace ScimServiceProvider.Services
 
         private void ApplyAddOperation(ScimUser user, PatchOperation operation)
         {
+            // If path is null or empty, treat as full object add/merge
             if (string.IsNullOrEmpty(operation.Path))
+            {
+                if (operation.Value is Newtonsoft.Json.Linq.JObject jObj)
+                {
+                    var userJson = Newtonsoft.Json.Linq.JObject.FromObject(user);
+                    userJson.Merge(jObj, new Newtonsoft.Json.Linq.JsonMergeSettings { MergeArrayHandling = Newtonsoft.Json.Linq.MergeArrayHandling.Merge });
+                    var updatedUser = userJson.ToObject<ScimUser>();
+                    if (updatedUser != null)
+                    {
+                        user.DisplayName = updatedUser.DisplayName;
+                        user.Title = updatedUser.Title;
+                        user.PreferredLanguage = updatedUser.PreferredLanguage;
+                        user.Name = updatedUser.Name;
+                        user.NickName = updatedUser.NickName;
+                        user.Locale = updatedUser.Locale;
+                        user.Timezone = updatedUser.Timezone;
+                        user.ProfileUrl = updatedUser.ProfileUrl;
+                        user.UserType = updatedUser.UserType;
+                        user.Emails = updatedUser.Emails;
+                        user.PhoneNumbers = updatedUser.PhoneNumbers;
+                        user.Addresses = updatedUser.Addresses;
+                        user.Roles = updatedUser.Roles;
+                        user.EnterpriseUser = updatedUser.EnterpriseUser;
+                    }
+                }
+                else if (operation.Value is System.Text.Json.JsonElement elem && elem.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    var updatedUser = System.Text.Json.JsonSerializer.Deserialize<ScimUser>(elem.GetRawText());
+                    if (updatedUser != null)
+                    {
+                        user.DisplayName = updatedUser.DisplayName;
+                        user.Title = updatedUser.Title;
+                        user.PreferredLanguage = updatedUser.PreferredLanguage;
+                        user.Name = updatedUser.Name;
+                        user.NickName = updatedUser.NickName;
+                        user.Locale = updatedUser.Locale;
+                        user.Timezone = updatedUser.Timezone;
+                        user.ProfileUrl = updatedUser.ProfileUrl;
+                        user.UserType = updatedUser.UserType;
+                        user.Emails = updatedUser.Emails;
+                        user.PhoneNumbers = updatedUser.PhoneNumbers;
+                        user.Addresses = updatedUser.Addresses;
+                        user.Roles = updatedUser.Roles;
+                        user.EnterpriseUser = updatedUser.EnterpriseUser;
+                    }
+                }
+                else if (operation.Value is Dictionary<string, object> dict)
+                {
+                    // For each key-value, treat as a separate add operation
+                    foreach (var kvp in dict)
+                    {
+                        var subOp = new PatchOperation { Op = "add", Path = kvp.Key, Value = kvp.Value };
+                        ApplyAddOperation(user, subOp);
+                    }
+                }
                 return;
+            }
 
-            var path = operation.Path.ToLower();
-            
-            // Handle enterprise extension manager
-            if (path == "urn:ietf:params:scim:schemas:extension:enterprise:2.0:user:manager")
+            var path = operation.Path;
+            // Handle dot notation for nested attributes
+            if (path.StartsWith("name."))
             {
-                // Ensure enterprise extension is initialized
-                if (user.EnterpriseUser == null)
+                if (user.Name == null) user.Name = new Name();
+                var sub = path.Substring(5).ToLower();
+                switch (sub)
                 {
-                    user.EnterpriseUser = new EnterpriseUser();
+                    case "givenname": user.Name.GivenName = operation.Value?.ToString(); break;
+                    case "familyname": user.Name.FamilyName = operation.Value?.ToString(); break;
+                    case "formatted": user.Name.Formatted = operation.Value?.ToString(); break;
+                    case "middlename": user.Name.MiddleName = operation.Value?.ToString(); break;
+                    case "honorificprefix": user.Name.HonorificPrefix = operation.Value?.ToString(); break;
+                    case "honorificsuffix": user.Name.HonorificSuffix = operation.Value?.ToString(); break;
                 }
-                user.EnterpriseUser.Manager = operation.Value?.ToString();
+                return;
             }
-            else if (path == "active")
+            // Handle multi-valued attributes with filter, e.g. emails[type eq "work"].value, roles[primary eq "True"].display
+            var mvMatch = System.Text.RegularExpressions.Regex.Match(path, @"^(\w+)\[(\w+) eq ""([\w ]+)""\]\.(\w+)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (mvMatch.Success)
             {
-                if (operation.Value is bool b)
+                var collection = mvMatch.Groups[1].Value.ToLower();
+                var filterAttr = mvMatch.Groups[2].Value.ToLower();
+                var filterValue = mvMatch.Groups[3].Value;
+                var attr = mvMatch.Groups[4].Value.ToLower();
+                if (collection == "emails")
                 {
-                    user.Active = b;
+                    if (user.Emails == null) user.Emails = new List<Email>();
+                    var email = user.Emails.FirstOrDefault(e => (filterAttr == "type" && e.Type.Equals(filterValue, StringComparison.OrdinalIgnoreCase)));
+                    if (email == null)
+                    {
+                        email = new Email { Type = filterAttr == "type" ? filterValue : "work" };
+                        user.Emails.Add(email);
+                    }
+                    if (attr == "value") email.Value = operation.Value?.ToString() ?? string.Empty;
+                    else if (attr == "primary") email.Primary = operation.Value is bool b ? b : bool.TryParse(operation.Value?.ToString(), out var pb) && pb;
                 }
-                else if (operation.Value is string s)
+                else if (collection == "phonenumbers")
                 {
-                    user.Active = bool.TryParse(s, out var result) && result;
+                    if (user.PhoneNumbers == null) user.PhoneNumbers = new List<PhoneNumber>();
+                    var phone = user.PhoneNumbers.FirstOrDefault(e => (filterAttr == "type" && e.Type.Equals(filterValue, StringComparison.OrdinalIgnoreCase)));
+                    if (phone == null)
+                    {
+                        phone = new PhoneNumber { Type = filterAttr == "type" ? filterValue : "work" };
+                        user.PhoneNumbers.Add(phone);
+                    }
+                    if (attr == "value") phone.Value = operation.Value?.ToString() ?? string.Empty;
+                    else if (attr == "primary") phone.Primary = operation.Value is bool b ? b : bool.TryParse(operation.Value?.ToString(), out var pb) && pb;
                 }
-                else if (operation.Value != null && bool.TryParse(operation.Value.ToString(), out var result2))
+                else if (collection == "addresses")
                 {
-                    user.Active = result2;
+                    if (user.Addresses == null) user.Addresses = new List<Address>();
+                    var addr = user.Addresses.FirstOrDefault(e => (filterAttr == "type" && e.Type.Equals(filterValue, StringComparison.OrdinalIgnoreCase)));
+                    if (addr == null)
+                    {
+                        addr = new Address { Type = filterAttr == "type" ? filterValue : "work" };
+                        user.Addresses.Add(addr);
+                    }
+                    if (attr == "formatted") addr.Formatted = operation.Value?.ToString();
+                    else if (attr == "streetaddress") addr.StreetAddress = operation.Value?.ToString();
+                    else if (attr == "locality") addr.Locality = operation.Value?.ToString();
+                    else if (attr == "region") addr.Region = operation.Value?.ToString();
+                    else if (attr == "postalcode") addr.PostalCode = operation.Value?.ToString();
+                    else if (attr == "country") addr.Country = operation.Value?.ToString();
+                    else if (attr == "primary") addr.Primary = operation.Value is bool b ? b : bool.TryParse(operation.Value?.ToString(), out var pb) && pb;
                 }
+                else if (collection == "roles")
+                {
+                    if (user.Roles == null) user.Roles = new List<Role>();
+                    // Support filter on any attribute, not just primary
+                    Role? role = null;
+                    foreach (var r in user.Roles)
+                    {
+                        var prop = typeof(Role).GetProperty(System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(filterAttr));
+                        if (prop != null && (prop.GetValue(r)?.ToString() ?? "") == filterValue)
+                        {
+                            role = r;
+                            break;
+                        }
+                    }
+                    if (role == null)
+                    {
+                        role = new Role();
+                        // Set the filter attribute
+                        var prop = typeof(Role).GetProperty(System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(filterAttr));
+                        if (prop != null)
+                        {
+                            prop.SetValue(role, filterValue);
+                        }
+                        // Set the target attribute
+                        var attrProp = typeof(Role).GetProperty(System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(attr));
+                        if (attrProp != null)
+                        {
+                            attrProp.SetValue(role, operation.Value?.ToString());
+                        }
+                        user.Roles.Add(role);
+                    }
+                    else
+                    {
+                        var attrProp = typeof(Role).GetProperty(System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(attr));
+                        if (attrProp != null)
+                        {
+                            attrProp.SetValue(role, operation.Value?.ToString());
+                        }
+                    }
+                }
+                return;
             }
-            else if (path == "displayname")
+            // Handle enterprise extension fields
+            var entPrefix = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:user:";
+            if (path.StartsWith(entPrefix, StringComparison.OrdinalIgnoreCase))
             {
-                user.DisplayName = operation.Value?.ToString();
+                if (user.EnterpriseUser == null) user.EnterpriseUser = new EnterpriseUser();
+                var sub = path.Substring(entPrefix.Length).ToLower();
+                switch (sub)
+                {
+                    case "employeenumber": user.EnterpriseUser.EmployeeNumber = operation.Value?.ToString(); break;
+                    case "department": user.EnterpriseUser.Department = operation.Value?.ToString(); break;
+                    case "costcenter": user.EnterpriseUser.CostCenter = operation.Value?.ToString(); break;
+                    case "organization": user.EnterpriseUser.Organization = operation.Value?.ToString(); break;
+                    case "division": user.EnterpriseUser.Division = operation.Value?.ToString(); break;
+                    case "manager": user.EnterpriseUser.Manager = operation.Value?.ToString(); break;
+                }
+                return;
             }
-            // Add more add operations as needed
+            // Flat attributes
+            switch (path.ToLower())
+            {
+                case "active":
+                    if (operation.Value is bool b) user.Active = b;
+                    else if (operation.Value is string s) user.Active = bool.TryParse(s, out var result) && result;
+                    else if (operation.Value != null && bool.TryParse(operation.Value.ToString(), out var result2)) user.Active = result2;
+                    break;
+                case "displayname": user.DisplayName = operation.Value?.ToString(); break;
+                case "title": user.Title = operation.Value?.ToString(); break;
+                case "preferredlanguage": user.PreferredLanguage = operation.Value?.ToString(); break;
+                case "usertype": user.UserType = operation.Value?.ToString(); break;
+                case "nickname": user.NickName = operation.Value?.ToString(); break;
+                case "locale": user.Locale = operation.Value?.ToString(); break;
+                case "timezone": user.Timezone = operation.Value?.ToString(); break;
+                case "profileurl": user.ProfileUrl = operation.Value?.ToString(); break;
+            }
         }
 
         private void ApplyRemoveOperation(ScimUser user, PatchOperation operation)
@@ -268,44 +434,159 @@ namespace ScimServiceProvider.Services
 
         private void ApplyReplaceOperation(ScimUser user, PatchOperation operation)
         {
-            // Debug log for troubleshooting
-            Console.WriteLine($"[DEBUG] Replace op: path={operation.Path}, value={operation.Value}");
+            // If path is null or empty, treat as full object replace (RFC 7644 3.5.2.2)
             if (string.IsNullOrEmpty(operation.Path))
+            {
+                if (operation.Value is Newtonsoft.Json.Linq.JObject jObj)
+                {
+                    foreach (var prop in jObj.Properties())
+                    {
+                        var subOp = new PatchOperation { Op = "replace", Path = prop.Name, Value = prop.Value.Type == Newtonsoft.Json.Linq.JTokenType.Null ? null : prop.Value.ToObject<object>() };
+                        ApplyReplaceOperation(user, subOp);
+                    }
+                }
+                else if (operation.Value is System.Text.Json.JsonElement elem && elem.ValueKind == System.Text.Json.JsonValueKind.Object)
+                {
+                    foreach (var prop in elem.EnumerateObject())
+                    {
+                        object? value = null;
+                        if (prop.Value.ValueKind != System.Text.Json.JsonValueKind.Null)
+                        {
+                            value = prop.Value.ValueKind == System.Text.Json.JsonValueKind.Object || prop.Value.ValueKind == System.Text.Json.JsonValueKind.Array
+                                ? System.Text.Json.JsonSerializer.Deserialize<object>(prop.Value.GetRawText())
+                                : prop.Value.ToString();
+                        }
+                        var subOp = new PatchOperation { Op = "replace", Path = prop.Name, Value = value };
+                        ApplyReplaceOperation(user, subOp);
+                    }
+                }
+                else if (operation.Value is Dictionary<string, object> dict)
+                {
+                    foreach (var kvp in dict)
+                    {
+                        var subOp = new PatchOperation { Op = "replace", Path = kvp.Key, Value = kvp.Value };
+                        ApplyReplaceOperation(user, subOp);
+                    }
+                }
                 return;
+            }
 
-            var path = operation.Path.ToLower();
-            
-            if (path == "active")
+            var path = operation.Path;
+            // Handle dot notation for nested attributes
+            if (path.StartsWith("name."))
             {
-                // Handle bool, string, and boxed values
-                if (operation.Value is bool b)
+                if (user.Name == null) user.Name = new Name();
+                var sub = path.Substring(5).ToLower();
+                switch (sub)
                 {
-                    user.Active = b;
+                    case "givenname": user.Name.GivenName = operation.Value?.ToString(); break;
+                    case "familyname": user.Name.FamilyName = operation.Value?.ToString(); break;
+                    case "formatted": user.Name.Formatted = operation.Value?.ToString(); break;
+                    case "middlename": user.Name.MiddleName = operation.Value?.ToString(); break;
+                    case "honorificprefix": user.Name.HonorificPrefix = operation.Value?.ToString(); break;
+                    case "honorificsuffix": user.Name.HonorificSuffix = operation.Value?.ToString(); break;
                 }
-                else if (operation.Value is string s)
-                {
-                    user.Active = bool.TryParse(s, out var result) && result;
-                }
-                else if (operation.Value != null && bool.TryParse(operation.Value.ToString(), out var result2))
-                {
-                    user.Active = result2;
-                }
+                return;
             }
-            else if (path == "displayname")
+            // Handle multi-valued attributes with filter, e.g. emails[type eq "work"].value, roles[primary eq "True"].display
+            var mvMatch = System.Text.RegularExpressions.Regex.Match(path, @"^(\w+)\[(\w+) eq ""([\w ]+)""\]\.(\w+)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (mvMatch.Success)
             {
-                user.DisplayName = operation.Value?.ToString();
-            }
-            else if (path == "urn:ietf:params:scim:schemas:extension:enterprise:2.0:user:manager")
-            {
-                // Ensure enterprise extension is initialized
-                if (user.EnterpriseUser == null)
+                var collection = mvMatch.Groups[1].Value.ToLower();
+                var filterAttr = mvMatch.Groups[2].Value.ToLower();
+                var filterValue = mvMatch.Groups[3].Value;
+                var attr = mvMatch.Groups[4].Value.ToLower();
+                if (collection == "emails")
                 {
-                    user.EnterpriseUser = new EnterpriseUser();
+                    var email = user.Emails?.FirstOrDefault(e =>
+                        filterAttr == "type" && e.Type.Equals(filterValue, StringComparison.OrdinalIgnoreCase));
+                    if (email != null)
+                    {
+                        if (attr == "value") email.Value = operation.Value?.ToString() ?? string.Empty;
+                        else if (attr == "primary") email.Primary = operation.Value is bool b ? b : bool.TryParse(operation.Value?.ToString(), out var pb) && pb;
+                    }
                 }
-                user.EnterpriseUser.Manager = operation.Value?.ToString();
-                Console.WriteLine($"[DEBUG] Set manager to: {user.EnterpriseUser.Manager}");
+                else if (collection == "phonenumbers")
+                {
+                    var phone = user.PhoneNumbers?.FirstOrDefault(e =>
+                        filterAttr == "type" && e.Type.Equals(filterValue, StringComparison.OrdinalIgnoreCase));
+                    if (phone != null)
+                    {
+                        if (attr == "value") phone.Value = operation.Value?.ToString() ?? string.Empty;
+                        else if (attr == "primary") phone.Primary = operation.Value is bool b ? b : bool.TryParse(operation.Value?.ToString(), out var pb) && pb;
+                    }
+                }
+                else if (collection == "addresses")
+                {
+                    var addr = user.Addresses?.FirstOrDefault(e =>
+                        filterAttr == "type" && e.Type.Equals(filterValue, StringComparison.OrdinalIgnoreCase));
+                    if (addr != null)
+                    {
+                        if (attr == "formatted") addr.Formatted = operation.Value?.ToString();
+                        else if (attr == "streetaddress") addr.StreetAddress = operation.Value?.ToString();
+                        else if (attr == "locality") addr.Locality = operation.Value?.ToString();
+                        else if (attr == "region") addr.Region = operation.Value?.ToString();
+                        else if (attr == "postalcode") addr.PostalCode = operation.Value?.ToString();
+                        else if (attr == "country") addr.Country = operation.Value?.ToString();
+                        else if (attr == "primary") addr.Primary = operation.Value is bool b ? b : bool.TryParse(operation.Value?.ToString(), out var pb) && pb;
+                    }
+                }
+                else if (collection == "roles")
+                {
+                    if (user.Roles != null)
+                    {
+                        var role = user.Roles.FirstOrDefault(r =>
+                            {
+                                var prop = typeof(Role).GetProperty(System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(filterAttr));
+                                return prop != null && (prop.GetValue(r)?.ToString() ?? "") == filterValue;
+                            });
+                        if (role != null)
+                        {
+                            var attrProp = typeof(Role).GetProperty(System.Globalization.CultureInfo.CurrentCulture.TextInfo.ToTitleCase(attr));
+                            if (attrProp != null)
+                            {
+                                attrProp.SetValue(role, operation.Value?.ToString());
+                            }
+                        }
+                    }
+                }
+                return;
             }
-            // Add more replace operations as needed
+            // Handle enterprise extension fields
+            var entPrefix = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:user:";
+            if (path.StartsWith(entPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                if (user.EnterpriseUser == null) user.EnterpriseUser = new EnterpriseUser();
+                var sub = path.Substring(entPrefix.Length).ToLower();
+                switch (sub)
+                {
+                    case "employeenumber": user.EnterpriseUser.EmployeeNumber = operation.Value?.ToString(); break;
+                    case "department": user.EnterpriseUser.Department = operation.Value?.ToString(); break;
+                    case "costcenter": user.EnterpriseUser.CostCenter = operation.Value?.ToString(); break;
+                    case "organization": user.EnterpriseUser.Organization = operation.Value?.ToString(); break;
+                    case "division": user.EnterpriseUser.Division = operation.Value?.ToString(); break;
+                    case "manager": user.EnterpriseUser.Manager = operation.Value?.ToString(); break;
+                }
+                return;
+            }
+            // Flat attributes
+            switch (path.ToLower())
+            {
+                case "username": user.UserName = operation.Value?.ToString() ?? string.Empty; break;
+                case "active":
+                    if (operation.Value is bool b) user.Active = b;
+                    else if (operation.Value is string s) user.Active = bool.TryParse(s, out var result) && result;
+                    else if (operation.Value != null && bool.TryParse(operation.Value.ToString(), out var result2)) user.Active = result2;
+                    break;
+                case "displayname": user.DisplayName = operation.Value?.ToString(); break;
+                case "title": user.Title = operation.Value?.ToString(); break;
+                case "preferredlanguage": user.PreferredLanguage = operation.Value?.ToString(); break;
+                case "usertype": user.UserType = operation.Value?.ToString(); break;
+                case "nickname": user.NickName = operation.Value?.ToString(); break;
+                case "locale": user.Locale = operation.Value?.ToString(); break;
+                case "timezone": user.Timezone = operation.Value?.ToString(); break;
+                case "profileurl": user.ProfileUrl = operation.Value?.ToString(); break;
+            }
         }
     }
 }

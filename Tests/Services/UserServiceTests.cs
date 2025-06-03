@@ -13,6 +13,8 @@ namespace ScimServiceProvider.Tests.Services
         private readonly Data.ScimDbContext _context;
         private readonly string _testCustomerId = ScimTestDataGenerator.DefaultCustomerId;
 
+        // ...existing code...
+
         public UserServiceTests()
         {
             _context = TestDbContextFactory.CreateInMemoryContext();
@@ -457,6 +459,150 @@ namespace ScimServiceProvider.Tests.Services
             result.Should().NotBeNull();
             result!.EnterpriseUser.Should().NotBeNull();
             result.EnterpriseUser!.Manager.Should().Be("new-manager-id-456");
+        }
+
+        [Fact]
+        public async Task PatchUserAsync_AddAttributes_WorksCorrectly()
+        {
+            // Arrange: create a minimal user with correct customer ID
+            var user = new ScimUser
+            {
+                Id = Guid.NewGuid().ToString(),
+                UserName = "jettie@king.ca",
+                Schemas = new List<string> { "urn:ietf:params:scim:schemas:core:2.0:User" },
+                CustomerId = _testCustomerId,
+                Emails = new List<Email>(),
+                Addresses = new List<Address>(),
+                PhoneNumbers = new List<PhoneNumber>(),
+                Roles = new List<Role>()
+            };
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() { Op = "add", Path = "emails[type eq \"work\"].value", Value = "fermin@marvin.us" },
+                    new() { Op = "add", Path = "emails[type eq \"work\"].primary", Value = true },
+                    new() { Op = "add", Path = "addresses[type eq \"work\"].formatted", Value = "BOYAIGFEIYKX" },
+                    new() { Op = "add", Path = "addresses[type eq \"work\"].streetAddress", Value = "95862 Botsford Fork" },
+                    new() { Op = "add", Path = "addresses[type eq \"work\"].locality", Value = "RSQUDGJMIZYJ" },
+                    new() { Op = "add", Path = "addresses[type eq \"work\"].region", Value = "HLJMHLAXWZFI" },
+                    new() { Op = "add", Path = "addresses[type eq \"work\"].postalCode", Value = "fe0 1wi" },
+                    new() { Op = "add", Path = "addresses[type eq \"work\"].primary", Value = true },
+                    new() { Op = "add", Path = "addresses[type eq \"work\"].country", Value = "Guadeloupe" },
+                    new() { Op = "add", Path = "phoneNumbers[type eq \"work\"].value", Value = "49-381-3129" },
+                    new() { Op = "add", Path = "phoneNumbers[type eq \"work\"].primary", Value = true },
+                    new() { Op = "add", Path = "phoneNumbers[type eq \"mobile\"].value", Value = "49-381-3129" },
+                    new() { Op = "add", Path = "phoneNumbers[type eq \"fax\"].value", Value = "49-381-3129" },
+                    new() { Op = "add", Path = "roles[primary eq \"True\"].display", Value = "AHVRDBATJEJC" },
+                    new() { Op = "add", Path = "roles[primary eq \"True\"].value", Value = "ATLJTNEEDLJP" },
+                    new() { Op = "add", Path = "roles[primary eq \"True\"].type", Value = "EVZBMGPPFBCF" },
+                    new() { Op = "add", Value = new Dictionary<string, object>
+                        {
+                            { "active", true },
+                            { "displayName", "WOWEFWTNGCQP" },
+                            { "title", "KFTIDSIDZRGB" },
+                            { "preferredLanguage", "lu" },
+                            { "name.givenName", "Walter" },
+                            { "name.familyName", "Kaylin" },
+                            { "name.formatted", "Amiya" },
+                            { "name.middleName", "Salvatore" },
+                            { "name.honorificPrefix", "Bianka" },
+                            { "name.honorificSuffix", "Lamar" },
+                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:employeeNumber", "UWHVRWOCJHUL" },
+                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:department", "INOJSAHIKABC" },
+                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:costCenter", "UPIMMUFIKGEQ" },
+                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:organization", "UEWKWLXOFMTZ" },
+                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:division", "BSSUDJYFDSPN" },
+                            { "userType", "DNIENTYXYFOG" },
+                            { "nickName", "FGDAIVHURVEO" },
+                            { "locale", "LAURRLIIXNJJ" },
+                            { "timezone", "Africa/Johannesburg" },
+                            { "profileUrl", "HASRZWMYVKSL" }
+                        }
+                    }
+                }
+            };
+
+            // Act
+            var result = await _userService.PatchUserAsync(user.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.Emails.Should().Contain(e => e.Type == "work" && e.Value == "fermin@marvin.us" && e.Primary);
+            result.Addresses.Should().Contain(a => a.Type == "work" && a.Formatted == "BOYAIGFEIYKX" && a.StreetAddress == "95862 Botsford Fork" && a.Locality == "RSQUDGJMIZYJ" && a.Region == "HLJMHLAXWZFI" && a.PostalCode == "fe0 1wi" && a.Country == "Guadeloupe" && a.Primary);
+            result.PhoneNumbers.Should().Contain(p => p.Type == "work" && p.Value == "49-381-3129" && p.Primary);
+            result.PhoneNumbers.Should().Contain(p => p.Type == "mobile" && p.Value == "49-381-3129");
+            result.PhoneNumbers.Should().Contain(p => p.Type == "fax" && p.Value == "49-381-3129");
+            result.Roles.Should().Contain(r => r.Primary == "True" && r.Display == "AHVRDBATJEJC" && r.Value == "ATLJTNEEDLJP" && r.Type == "EVZBMGPPFBCF");
+            result.DisplayName.Should().Be("WOWEFWTNGCQP");
+            result.Title.Should().Be("KFTIDSIDZRGB");
+            result.PreferredLanguage.Should().Be("lu");
+            result.Name.Should().NotBeNull();
+            result.Name!.GivenName.Should().Be("Walter");
+            result.Name.FamilyName.Should().Be("Kaylin");
+            result.Name.Formatted.Should().Be("Amiya");
+            result.Name.MiddleName.Should().Be("Salvatore");
+            result.Name.HonorificPrefix.Should().Be("Bianka");
+            result.Name.HonorificSuffix.Should().Be("Lamar");
+            result.EnterpriseUser.Should().NotBeNull();
+            result.EnterpriseUser!.EmployeeNumber.Should().Be("UWHVRWOCJHUL");
+            result.EnterpriseUser.Department.Should().Be("INOJSAHIKABC");
+            result.EnterpriseUser.CostCenter.Should().Be("UPIMMUFIKGEQ");
+            result.EnterpriseUser.Organization.Should().Be("UEWKWLXOFMTZ");
+            result.EnterpriseUser.Division.Should().Be("BSSUDJYFDSPN");
+            result.UserType.Should().Be("DNIENTYXYFOG");
+            result.NickName.Should().Be("FGDAIVHURVEO");
+            result.Locale.Should().Be("LAURRLIIXNJJ");
+            result.Timezone.Should().Be("Africa/Johannesburg");
+            result.ProfileUrl.Should().Be("HASRZWMYVKSL");
+        }
+
+        [Fact]
+        public async Task PatchUserAsync_WithFullObjectReplace_UpdatesMultipleAttributes()
+        {
+            // Arrange
+            var existingUser = ScimTestDataGenerator.GenerateUser(userName: "original@example.com", active: true);
+            existingUser.DisplayName = "Original Name";
+            _context.Users.Add(existingUser);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new ScimPatchOperation
+                    {
+                        Op = "replace",
+                        Path = null, // Full-object replace
+                        Value = new Dictionary<string, object>
+                        {
+                            { "userName", "patched2@example.com" },
+                            { "displayName", "Patched Name" },
+                            { "active", false }
+                        }
+                    }
+                }
+            };
+
+            // Act
+            var result = await _userService.PatchUserAsync(existingUser.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.UserName.Should().Be("patched2@example.com");
+            result.DisplayName.Should().Be("Patched Name");
+            result.Active.Should().BeFalse();
+
+            // Verify database was updated
+            var dbUser = await _context.Users.FindAsync(existingUser.Id);
+            dbUser!.UserName.Should().Be("patched2@example.com");
+            dbUser.DisplayName.Should().Be("Patched Name");
+            dbUser.Active.Should().BeFalse();
         }
     }
 }

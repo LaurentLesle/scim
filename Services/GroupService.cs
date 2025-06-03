@@ -97,7 +97,6 @@ namespace ScimServiceProvider.Services
         {
             var group = await _context.Groups
                 .FirstOrDefaultAsync(g => g.Id == id && g.CustomerId == customerId);
-                
             if (group == null)
                 return null;
 
@@ -108,6 +107,9 @@ namespace ScimServiceProvider.Services
 
             group.LastModified = DateTime.UtcNow;
             group.Meta.LastModified = group.LastModified;
+
+            // Ensure proper schemas are set after patching
+            group.Schemas = new List<string> { "urn:ietf:params:scim:schemas:core:2.0:Group" };
 
             await _context.SaveChangesAsync();
             return group;
