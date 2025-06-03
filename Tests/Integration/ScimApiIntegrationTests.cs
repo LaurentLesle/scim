@@ -423,5 +423,279 @@ namespace ScimServiceProvider.Tests.Integration
             var error = JsonConvert.DeserializeObject<ScimError>(errorJson);
             error!.Status.Should().Be(404);
         }
+
+        [Fact]
+        public async Task PatchUser_WithManagerObjectOperation_ReturnsCorrectManagerData()
+        {
+            await SetAuthHeaderAsync();
+
+            // 1. Create a user
+            var user = ScimTestDataGenerator.GenerateUser();
+            var content = new StringContent(
+                JsonConvert.SerializeObject(user),
+                Encoding.UTF8,
+                "application/scim+json");
+
+            var createResponse = await _client.PostAsync("/scim/v2/Users", content);
+            createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+            var createdUserJson = await createResponse.Content.ReadAsStringAsync();
+            var createdUser = JsonConvert.DeserializeObject<ScimUser>(createdUserJson);
+
+            // 2. Patch with Manager object
+            var managerJson = """{"value":"manager-api-test-123","$ref":"../Users/manager-api-test-123","displayName":"API Test Manager"}""";
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() {
+                        Op = "add",
+                        Path = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager",
+                        Value = managerJson
+                    }
+                }
+            };
+
+            var patchContent = new StringContent(
+                JsonConvert.SerializeObject(patchRequest),
+                Encoding.UTF8,
+                "application/scim+json");
+
+            var patchResponse = await _client.PatchAsync($"/scim/v2/Users/{createdUser!.Id}", patchContent);
+            patchResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var patchedUserJson = await patchResponse.Content.ReadAsStringAsync();
+            var patchedUser = JsonConvert.DeserializeObject<ScimUser>(patchedUserJson);
+
+            // Assert Manager object properties
+            patchedUser!.EnterpriseUser.Should().NotBeNull();
+            patchedUser.EnterpriseUser!.Manager.Should().NotBeNull();
+            patchedUser.EnterpriseUser!.Manager!.Value.Should().Be("manager-api-test-123");
+            patchedUser.EnterpriseUser!.Manager!.Ref.Should().Be("../Users/manager-api-test-123");
+            patchedUser.EnterpriseUser!.Manager!.DisplayName.Should().Be("API Test Manager");
+
+            // Verify schemas include enterprise extension
+            patchedUser.Schemas.Should().Contain("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
+        }
+
+        [Fact]
+        public async Task PatchUser_WithLegacyManagerString_HandlesBackwardCompatibility()
+        {
+            await SetAuthHeaderAsync();
+
+            // 1. Create a user
+            var user = ScimTestDataGenerator.GenerateUser();
+            var content = new StringContent(
+                JsonConvert.SerializeObject(user),
+                Encoding.UTF8,
+                "application/scim+json");
+
+            var createResponse = await _client.PostAsync("/scim/v2/Users", content);
+            createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+            var createdUserJson = await createResponse.Content.ReadAsStringAsync();
+            var createdUser = JsonConvert.DeserializeObject<ScimUser>(createdUserJson);
+
+            // 2. Patch with legacy string manager value
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() {
+                        Op = "add",
+                        Path = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager",
+                        Value = "legacy-manager-string-123"
+                    }
+                }
+            };
+
+            var patchContent = new StringContent(
+                JsonConvert.SerializeObject(patchRequest),
+                Encoding.UTF8,
+                "application/scim+json");
+
+            var patchResponse = await _client.PatchAsync($"/scim/v2/Users/{createdUser!.Id}", patchContent);
+            patchResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var patchedUserJson = await patchResponse.Content.ReadAsStringAsync();
+            var patchedUser = JsonConvert.DeserializeObject<ScimUser>(patchedUserJson);
+
+            // Assert RFC 7643 compliance - $ref should be populated for manager references
+            patchedUser!.EnterpriseUser.Should().NotBeNull();
+            patchedUser.EnterpriseUser!.Manager.Should().NotBeNull();
+            patchedUser.EnterpriseUser!.Manager!.Value.Should().Be("legacy-manager-string-123");
+            patchedUser.EnterpriseUser!.Manager!.Ref.Should().Be("../Users/legacy-manager-string-123");
+            patchedUser.EnterpriseUser!.Manager!.DisplayName.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task PatchUser_WithReplaceManagerOperation_ReplacesManagerCorrectly()
+        {
+            await SetAuthHeaderAsync();
+
+            // 1. Create a user with initial manager
+            var user = ScimTestDataGenerator.GenerateUser();
+            user.EnterpriseUser = new EnterpriseUser 
+            { 
+                Manager = new Manager 
+                { 
+                    Value = "initial-manager-123",
+                    DisplayName = "Initial Manager"
+                }
+            };
+            user.Schemas.Add("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
+
+            var content = new StringContent(
+                JsonConvert.SerializeObject(user),
+                Encoding.UTF8,
+                "application/scim+json");
+
+            var createResponse = await _client.PostAsync("/scim/v2/Users", content);
+            createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+            var createdUserJson = await createResponse.Content.ReadAsStringAsync();
+            var createdUser = JsonConvert.DeserializeObject<ScimUser>(createdUserJson);
+
+            // 2. Replace with new manager
+            var newManagerJson = """{"value":"new-manager-456","$ref":"../Users/new-manager-456","displayName":"New Manager"}""";
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() {
+                        Op = "replace",
+                        Path = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager",
+                        Value = newManagerJson
+                    }
+                }
+            };
+
+            var patchContent = new StringContent(
+                JsonConvert.SerializeObject(patchRequest),
+                Encoding.UTF8,
+                "application/scim+json");
+
+            var patchResponse = await _client.PatchAsync($"/scim/v2/Users/{createdUser!.Id}", patchContent);
+            patchResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var patchedUserJson = await patchResponse.Content.ReadAsStringAsync();
+            var patchedUser = JsonConvert.DeserializeObject<ScimUser>(patchedUserJson);
+
+            // Assert manager was replaced
+            patchedUser!.EnterpriseUser.Should().NotBeNull();
+            patchedUser.EnterpriseUser!.Manager.Should().NotBeNull();
+            patchedUser.EnterpriseUser!.Manager!.Value.Should().Be("new-manager-456");
+            patchedUser.EnterpriseUser!.Manager!.Ref.Should().Be("../Users/new-manager-456");
+            patchedUser.EnterpriseUser!.Manager!.DisplayName.Should().Be("New Manager");
+        }
+
+        [Fact]
+        public async Task PatchUser_WithRemoveManagerOperation_RemovesManagerCorrectly()
+        {
+            await SetAuthHeaderAsync();
+
+            // 1. Create a user with manager
+            var user = ScimTestDataGenerator.GenerateUser();
+            user.EnterpriseUser = new EnterpriseUser 
+            { 
+                Manager = new Manager 
+                { 
+                    Value = "manager-to-remove-123",
+                    DisplayName = "Manager To Remove"
+                }
+            };
+            user.Schemas.Add("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
+
+            var content = new StringContent(
+                JsonConvert.SerializeObject(user),
+                Encoding.UTF8,
+                "application/scim+json");
+
+            var createResponse = await _client.PostAsync("/scim/v2/Users", content);
+            createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+            var createdUserJson = await createResponse.Content.ReadAsStringAsync();
+            var createdUser = JsonConvert.DeserializeObject<ScimUser>(createdUserJson);
+
+            // 2. Remove manager
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() {
+                        Op = "remove",
+                        Path = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager"
+                    }
+                }
+            };
+
+            var patchContent = new StringContent(
+                JsonConvert.SerializeObject(patchRequest),
+                Encoding.UTF8,
+                "application/scim+json");
+
+            var patchResponse = await _client.PatchAsync($"/scim/v2/Users/{createdUser!.Id}", patchContent);
+            patchResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var patchedUserJson = await patchResponse.Content.ReadAsStringAsync();
+            var patchedUser = JsonConvert.DeserializeObject<ScimUser>(patchedUserJson);
+
+            // Assert manager was removed
+            patchedUser!.EnterpriseUser.Should().NotBeNull();
+            patchedUser.EnterpriseUser!.Manager.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task GetUser_WithManagerObject_ReturnsCorrectManagerStructure()
+        {
+            await SetAuthHeaderAsync();
+
+            // 1. Create a user with manager
+            var user = ScimTestDataGenerator.GenerateUser();
+            user.EnterpriseUser = new EnterpriseUser 
+            { 
+                Manager = new Manager 
+                { 
+                    Value = "get-test-manager-123",
+                    Ref = "../Users/get-test-manager-123",
+                    DisplayName = "Get Test Manager"
+                }
+            };
+            user.Schemas.Add("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
+
+            var content = new StringContent(
+                JsonConvert.SerializeObject(user),
+                Encoding.UTF8,
+                "application/scim+json");
+
+            var createResponse = await _client.PostAsync("/scim/v2/Users", content);
+            createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+
+            var createdUserJson = await createResponse.Content.ReadAsStringAsync();
+            var createdUser = JsonConvert.DeserializeObject<ScimUser>(createdUserJson);
+
+            // 2. Get the user to verify manager structure persists
+            var getResponse = await _client.GetAsync($"/scim/v2/Users/{createdUser!.Id}");
+            getResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var getUserJson = await getResponse.Content.ReadAsStringAsync();
+            var retrievedUser = JsonConvert.DeserializeObject<ScimUser>(getUserJson);
+
+            // Assert manager object structure is preserved
+            retrievedUser!.EnterpriseUser.Should().NotBeNull();
+            retrievedUser.EnterpriseUser!.Manager.Should().NotBeNull();
+            retrievedUser.EnterpriseUser!.Manager!.Value.Should().Be("get-test-manager-123");
+            retrievedUser.EnterpriseUser!.Manager!.Ref.Should().Be("../Users/get-test-manager-123");
+            retrievedUser.EnterpriseUser!.Manager!.DisplayName.Should().Be("Get Test Manager");
+
+            // Verify schemas include enterprise extension
+            retrievedUser.Schemas.Should().Contain("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
+        }
     }
 }

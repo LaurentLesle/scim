@@ -77,6 +77,7 @@ namespace ScimServiceProvider.Models
         
         // Enterprise extension
         [System.Text.Json.Serialization.JsonPropertyName("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User")]
+        [Newtonsoft.Json.JsonProperty("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User")]
         public EnterpriseUser? EnterpriseUser { get; set; }
         
         [System.Text.Json.Serialization.JsonPropertyName("meta")]
@@ -303,22 +304,54 @@ namespace ScimServiceProvider.Models
     public class EnterpriseUser
     {
         [System.Text.Json.Serialization.JsonPropertyName("employeeNumber")]
+        [Newtonsoft.Json.JsonProperty("employeeNumber")]
         public string? EmployeeNumber { get; set; }
         
         [System.Text.Json.Serialization.JsonPropertyName("department")]
+        [Newtonsoft.Json.JsonProperty("department")]
         public string? Department { get; set; }
         
         [System.Text.Json.Serialization.JsonPropertyName("costCenter")]
+        [Newtonsoft.Json.JsonProperty("costCenter")]
         public string? CostCenter { get; set; }
         
         [System.Text.Json.Serialization.JsonPropertyName("organization")]
+        [Newtonsoft.Json.JsonProperty("organization")]
         public string? Organization { get; set; }
         
         [System.Text.Json.Serialization.JsonPropertyName("division")]
+        [Newtonsoft.Json.JsonProperty("division")]
         public string? Division { get; set; }
         
         [System.Text.Json.Serialization.JsonPropertyName("manager")]
-        public string? Manager { get; set; }
+        [Newtonsoft.Json.JsonProperty("manager")]
+        public Manager? Manager { get; set; }
+    }
+
+    public class Manager : IEquatable<Manager>
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("value")]
+        [Newtonsoft.Json.JsonProperty("value")]
+        public string? Value { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("$ref")]
+        [Newtonsoft.Json.JsonProperty("$ref")]
+        public string? Ref { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("displayName")]
+        [Newtonsoft.Json.JsonProperty("displayName")]
+        public string? DisplayName { get; set; }
+
+        public bool Equals(Manager? other)
+        {
+            if (other is null) return false;
+            if (ReferenceEquals(this, other)) return true;
+            return Value == other.Value && Ref == other.Ref && DisplayName == other.DisplayName;
+        }
+
+        public override bool Equals(object? obj) => Equals(obj as Manager);
+
+        public override int GetHashCode() => HashCode.Combine(Value, Ref, DisplayName);
     }
 
     public class ScimMeta
