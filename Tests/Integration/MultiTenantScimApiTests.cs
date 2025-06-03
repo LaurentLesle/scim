@@ -132,13 +132,14 @@ namespace ScimServiceProvider.Tests.Integration
         // This method has been replaced by GetAuthTokenAsync
 
         // Add methods to get an auth token and set auth header
-        private async Task<string> GetAuthTokenAsync()
+        private async Task<string> GetAuthTokenAsync(string? tenantId = null)
         {
             var authRequest = new
             {
                 clientId = "scim_client",
                 clientSecret = "scim_secret",
-                grantType = "client_credentials"
+                grantType = "client_credentials",
+                tenantId = tenantId ?? "tenant1" // Default to tenant1 if not specified
             };
 
             var authContent = new StringContent(
@@ -175,31 +176,9 @@ namespace ScimServiceProvider.Tests.Integration
         private async Task<HttpClient> CreateAuthenticatedClientWithTenantHeader(string tenantId)
         {
             var client = CreateClientWithTenantHeader(tenantId);
-            var authRequest = new
-            {
-                clientId = "scim_client",
-                clientSecret = "scim_secret",
-                grantType = "client_credentials"
-            };
-
-            var authContent = new StringContent(
-                JsonConvert.SerializeObject(authRequest),
-                Encoding.UTF8,
-                "application/json");
-
-            var authResponse = await client.PostAsync("/api/auth/token", authContent);
-            if (!authResponse.IsSuccessStatusCode)
-            {
-                throw new Exception($"Failed to get auth token: {authResponse.StatusCode}");
-            }
-
-            var authResult = JsonConvert.DeserializeObject<dynamic>(
-                await authResponse.Content.ReadAsStringAsync());
-            string token = authResult!.access_token;
-            
+            var token = await GetAuthTokenAsync(tenantId); // Pass tenantId to get correct JWT token
             client.DefaultRequestHeaders.Authorization = 
                 new AuthenticationHeaderValue("Bearer", token);
-                
             return client;
         }
 

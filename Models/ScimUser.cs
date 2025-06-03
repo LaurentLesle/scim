@@ -33,6 +33,12 @@ namespace ScimServiceProvider.Models
         public List<PhoneNumber> PhoneNumbers { get; set; } = new();
         public List<Address> Addresses { get; set; } = new();
         public List<GroupMembership> Groups { get; set; } = new();
+        public List<Role> Roles { get; set; } = new();
+        
+        // Enterprise extension
+        [System.Text.Json.Serialization.JsonPropertyName("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User")]
+        public EnterpriseUser? EnterpriseUser { get; set; }
+        
         public ScimMeta Meta { get; set; } = new();
         public DateTime Created { get; set; } = DateTime.UtcNow;
         public DateTime LastModified { get; set; } = DateTime.UtcNow;
@@ -81,6 +87,24 @@ namespace ScimServiceProvider.Models
         public string Value { get; set; } = string.Empty;
         public string? Display { get; set; }
         public string Type { get; set; } = "direct";
+    }
+
+    public class Role
+    {
+        public string Value { get; set; } = string.Empty;
+        public string? Display { get; set; }
+        public string Type { get; set; } = string.Empty;
+        public string? Primary { get; set; }
+    }
+
+    public class EnterpriseUser
+    {
+        public string? EmployeeNumber { get; set; }
+        public string? Department { get; set; }
+        public string? CostCenter { get; set; }
+        public string? Organization { get; set; }
+        public string? Division { get; set; }
+        public string? Manager { get; set; }
     }
 
     public class ScimMeta

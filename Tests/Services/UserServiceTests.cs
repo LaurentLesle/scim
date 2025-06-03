@@ -330,5 +330,96 @@ namespace ScimServiceProvider.Tests.Services
             // Note: The actual filtering logic depends on the implementation
             // This test verifies that filtering doesn't break the service
         }
+
+        [Fact]
+        public async Task PatchUserAsync_WithAddManagerOperation_AddsManager()
+        {
+            // Arrange
+            var existingUser = ScimTestDataGenerator.GenerateUser();
+            _context.Users.Add(existingUser);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() {
+                        Op = "add",
+                        Path = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager",
+                        Value = "manager-id-123"
+                    }
+                }
+            };
+
+            // Act
+            var result = await _userService.PatchUserAsync(existingUser.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.EnterpriseUser.Should().NotBeNull();
+            result.EnterpriseUser!.Manager.Should().Be("manager-id-123");
+        }
+
+        [Fact]
+        public async Task PatchUserAsync_WithRemoveManagerOperation_RemovesManager()
+        {
+            // Arrange
+            var existingUser = ScimTestDataGenerator.GenerateUser();
+            existingUser.EnterpriseUser = new EnterpriseUser { Manager = "manager-id-123" };
+            _context.Users.Add(existingUser);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() {
+                        Op = "remove",
+                        Path = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager"
+                    }
+                }
+            };
+
+            // Act
+            var result = await _userService.PatchUserAsync(existingUser.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.EnterpriseUser.Should().NotBeNull();
+            result.EnterpriseUser!.Manager.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task PatchUserAsync_WithReplaceManagerOperation_ReplacesManager()
+        {
+            // Arrange
+            var existingUser = ScimTestDataGenerator.GenerateUser();
+            existingUser.EnterpriseUser = new EnterpriseUser { Manager = "old-manager-id" };
+            _context.Users.Add(existingUser);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() {
+                        Op = "replace",
+                        Path = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager",
+                        Value = "new-manager-id-456"
+                    }
+                }
+            };
+
+            // Act
+            var result = await _userService.PatchUserAsync(existingUser.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.EnterpriseUser.Should().NotBeNull();
+            result.EnterpriseUser!.Manager.Should().Be("new-manager-id-456");
+        }
     }
 }

@@ -42,22 +42,17 @@ namespace ScimServiceProvider.Middleware
             {
                 _logger.LogInformation("🏢 Processing tenant validation for path: {Path}", context.Request.Path);
                 
-                // Extract tenant id from auth token or header
+                // Extract tenant id from JWT token (primary method for SCIM compliance)
                 string? tenantId = null;
+                string? customerId = null;
                 
-                // Option 1: From custom header
-                if (context.Request.Headers.TryGetValue("X-Tenant-ID", out var tenantIdHeader))
+                // Primary method: Extract tenant_id from JWT token (SCIM compliance)
+                if (context.User?.Identity?.IsAuthenticated == true)
                 {
-                    tenantId = tenantIdHeader.ToString();
-                    _logger.LogInformation("🏢 Found tenant ID in header: {TenantId}", tenantId);
-                }
-                
-                // Option 2: From claim in JWT
-                if (string.IsNullOrEmpty(tenantId) && context.User?.Identity?.IsAuthenticated == true)
-                {
-                    tenantId = context.User.FindFirstValue("tenant_id");
-                    if (!string.IsNullOrEmpty(tenantId))
+                    var jwtTenantId = context.User.FindFirstValue("tenant_id");
+                    if (!string.IsNullOrEmpty(jwtTenantId))
                     {
+                        tenantId = jwtTenantId;
                         _logger.LogInformation("🏢 Found tenant ID in JWT token: {TenantId}", tenantId);
                     }
                     else
@@ -66,27 +61,59 @@ namespace ScimServiceProvider.Middleware
                     }
                 }
                 
-                if (string.IsNullOrEmpty(tenantId))
+                // Fallback methods (for backward compatibility, but not required for SCIM compliance)
+                // Option 1: From Customer-Id header (backward compatibility only)
+                if (string.IsNullOrEmpty(tenantId) && context.Request.Headers.TryGetValue("Customer-Id", out var customerIdHeader))
                 {
-                    _logger.LogWarning("❌ Missing tenant identifier for path: {Path}", context.Request.Path);
-                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                    await context.Response.WriteAsJsonAsync(new { error = "Missing tenant identifier" });
+                    customerId = customerIdHeader.ToString();
+                    _logger.LogInformation("🏢 Found customer ID in header (fallback): {CustomerId}", customerId);
+                }
+                
+                // Option 2: From X-Tenant-ID header (backward compatibility only)
+                if (string.IsNullOrEmpty(tenantId) && context.Request.Headers.TryGetValue("X-Tenant-ID", out var tenantIdHeader))
+                {
+                    tenantId = tenantIdHeader.ToString();
+                    _logger.LogInformation("🏢 Found tenant ID in header (fallback): {TenantId}", tenantId);
+                }
+                
+                // Process customer context from tenant ID or direct customer ID
+                if (!string.IsNullOrEmpty(tenantId))
+                {
+                    // Derive customer from tenant ID (preferred SCIM-compliant method)
+                    var customer = await customerService.GetCustomerByTenantIdAsync(tenantId);
+                    if (customer == null || !customer.IsActive)
+                    {
+                        _logger.LogWarning("❌ Invalid or inactive tenant: {TenantId}", tenantId);
+                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        await context.Response.WriteAsJsonAsync(new { error = "Invalid or inactive tenant" });
+                        return;
+                    }
+
+                    context.Items["CustomerId"] = customer.Id;
+                    _logger.LogInformation("✅ Customer context set: {CustomerId} for tenant: {TenantId}", customer.Id, tenantId);
+                }
+                else if (!string.IsNullOrEmpty(customerId))
+                {
+                    // Fallback: Direct customer ID from header (backward compatibility)
+                    var directCustomer = await customerService.GetCustomerAsync(customerId);
+                    if (directCustomer == null || !directCustomer.IsActive)
+                    {
+                        _logger.LogWarning("❌ Invalid or inactive customer: {CustomerId}", customerId);
+                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        await context.Response.WriteAsJsonAsync(new { error = "Invalid or inactive customer" });
+                        return;
+                    }
+                    
+                    context.Items["CustomerId"] = directCustomer.Id;
+                    _logger.LogInformation("✅ Customer context set directly (fallback): {CustomerId}", directCustomer.Id);
+                }
+                else
+                {
+                    _logger.LogWarning("❌ Missing tenant identifier in JWT token for path: {Path}", context.Request.Path);
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    await context.Response.WriteAsJsonAsync(new { error = "Missing tenant identifier in authentication token" });
                     return;
                 }
-
-                // Verify tenant exists
-                var customer = await customerService.GetCustomerByTenantIdAsync(tenantId);
-                if (customer == null || !customer.IsActive)
-                {
-                    _logger.LogWarning("❌ Invalid or inactive tenant: {TenantId}", tenantId);
-                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    await context.Response.WriteAsJsonAsync(new { error = "Invalid or inactive tenant" });
-                    return;
-                }
-
-                // Store customer ID in items collection for use in controllers
-                context.Items["CustomerId"] = customer.Id;
-                _logger.LogInformation("✅ Customer context set: {CustomerId} for tenant: {TenantId}", customer.Id, tenantId);
             }
 
             await _next(context);

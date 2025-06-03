@@ -11,8 +11,8 @@ namespace ScimServiceProvider.Models
         public string? ExternalId { get; set; }
         public string DisplayName { get; set; } = string.Empty;
         
-        // Customer relationship
-        [Required]
+        // Customer relationship - set by service from authentication context
+        // Note: Not [Required] in model binding as it's derived from JWT token, not request body
         public string CustomerId { get; set; } = string.Empty;
         
         [ForeignKey("CustomerId")]

@@ -95,7 +95,8 @@ namespace ScimServiceProvider.Tests.Integration
             {
                 clientId = "scim_client",
                 clientSecret = "scim_secret",
-                grantType = "client_credentials"
+                grantType = "client_credentials",
+                tenantId = CustomWebApplicationFactory.TestTenantId
             };
 
             var authContent = new StringContent(

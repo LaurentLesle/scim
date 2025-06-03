@@ -46,6 +46,11 @@ namespace ScimServiceProvider.Data
                 entity.Property(e => e.CustomerId).IsRequired();
                 
                 // Convert complex objects to JSON for storage
+                entity.Property(e => e.Schemas)
+                    .HasConversion(
+                        v => JsonConvert.SerializeObject(v),
+                        v => JsonConvert.DeserializeObject<List<string>>(v) ?? new List<string>());
+                        
                 entity.Property(e => e.Name)
                     .HasConversion(
                         v => JsonConvert.SerializeObject(v),
@@ -70,6 +75,16 @@ namespace ScimServiceProvider.Data
                     .HasConversion(
                         v => JsonConvert.SerializeObject(v),
                         v => JsonConvert.DeserializeObject<List<GroupMembership>>(v) ?? new List<GroupMembership>());
+
+                entity.Property(e => e.Roles)
+                    .HasConversion(
+                        v => JsonConvert.SerializeObject(v),
+                        v => JsonConvert.DeserializeObject<List<Role>>(v) ?? new List<Role>());
+
+                entity.Property(e => e.EnterpriseUser)
+                    .HasConversion(
+                        v => JsonConvert.SerializeObject(v),
+                        v => JsonConvert.DeserializeObject<EnterpriseUser>(v));
 
                 entity.Property(e => e.Meta)
                     .HasConversion(

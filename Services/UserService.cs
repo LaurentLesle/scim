@@ -95,6 +95,8 @@ namespace ScimServiceProvider.Services
             existingUser.PhoneNumbers = user.PhoneNumbers;
             existingUser.Addresses = user.Addresses;
             existingUser.Groups = user.Groups;
+            existingUser.Roles = user.Roles;
+            existingUser.EnterpriseUser = user.EnterpriseUser;
             existingUser.LastModified = DateTime.UtcNow;
             existingUser.Meta.LastModified = existingUser.LastModified;
 
@@ -154,35 +156,114 @@ namespace ScimServiceProvider.Services
             switch (operation.Op.ToLower())
             {
                 case "replace":
-                    if (operation.Path?.ToLower() == "active")
-                    {
-                        // Handle bool, string, and boxed values
-                        if (operation.Value is bool b)
-                        {
-                            user.Active = b;
-                        }
-                        else if (operation.Value is string s)
-                        {
-                            user.Active = bool.TryParse(s, out var result) && result;
-                        }
-                        else if (operation.Value != null && bool.TryParse(operation.Value.ToString(), out var result2))
-                        {
-                            user.Active = result2;
-                        }
-                    }
-                    else if (operation.Path?.ToLower() == "displayname")
-                    {
-                        user.DisplayName = operation.Value?.ToString();
-                    }
-                    // Add more patch operations as needed
+                    ApplyReplaceOperation(user, operation);
                     break;
                 case "add":
-                    // Implement add operations
+                    ApplyAddOperation(user, operation);
                     break;
                 case "remove":
-                    // Implement remove operations
+                    ApplyRemoveOperation(user, operation);
                     break;
             }
+        }
+
+        private void ApplyAddOperation(ScimUser user, PatchOperation operation)
+        {
+            if (string.IsNullOrEmpty(operation.Path))
+                return;
+
+            var path = operation.Path.ToLower();
+            
+            // Handle enterprise extension manager
+            if (path == "urn:ietf:params:scim:schemas:extension:enterprise:2.0:user:manager")
+            {
+                // Ensure enterprise extension is initialized
+                if (user.EnterpriseUser == null)
+                {
+                    user.EnterpriseUser = new EnterpriseUser();
+                }
+                user.EnterpriseUser.Manager = operation.Value?.ToString();
+            }
+            else if (path == "active")
+            {
+                if (operation.Value is bool b)
+                {
+                    user.Active = b;
+                }
+                else if (operation.Value is string s)
+                {
+                    user.Active = bool.TryParse(s, out var result) && result;
+                }
+                else if (operation.Value != null && bool.TryParse(operation.Value.ToString(), out var result2))
+                {
+                    user.Active = result2;
+                }
+            }
+            else if (path == "displayname")
+            {
+                user.DisplayName = operation.Value?.ToString();
+            }
+            // Add more add operations as needed
+        }
+
+        private void ApplyRemoveOperation(ScimUser user, PatchOperation operation)
+        {
+            if (string.IsNullOrEmpty(operation.Path))
+                return;
+
+            var path = operation.Path.ToLower();
+            
+            // Handle enterprise extension manager removal
+            if (path == "urn:ietf:params:scim:schemas:extension:enterprise:2.0:user:manager")
+            {
+                if (user.EnterpriseUser != null)
+                {
+                    user.EnterpriseUser.Manager = null;
+                }
+            }
+            // Add more remove operations as needed
+        }
+
+        private void ApplyReplaceOperation(ScimUser user, PatchOperation operation)
+        {
+            // Debug log for troubleshooting
+            Console.WriteLine($"[DEBUG] Replace op: path={operation.Path}, value={operation.Value}");
+            if (string.IsNullOrEmpty(operation.Path))
+                return;
+
+            var path = operation.Path.ToLower();
+            
+            if (path == "active")
+            {
+                // Handle bool, string, and boxed values
+                if (operation.Value is bool b)
+                {
+                    user.Active = b;
+                }
+                else if (operation.Value is string s)
+                {
+                    user.Active = bool.TryParse(s, out var result) && result;
+                }
+                else if (operation.Value != null && bool.TryParse(operation.Value.ToString(), out var result2))
+                {
+                    user.Active = result2;
+                }
+            }
+            else if (path == "displayname")
+            {
+                user.DisplayName = operation.Value?.ToString();
+            }
+            else if (path == "urn:ietf:params:scim:schemas:extension:enterprise:2.0:user:manager")
+            {
+                // Ensure enterprise extension is initialized
+                if (user.EnterpriseUser == null)
+                {
+                    user.EnterpriseUser = new EnterpriseUser();
+                }
+                user.EnterpriseUser.Manager = operation.Value?.ToString();
+                Console.WriteLine($"[DEBUG] Set manager to: {user.EnterpriseUser.Manager}");
+            }
+            // Add more replace operations as needed
         }
     }
 }
