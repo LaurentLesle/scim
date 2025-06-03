@@ -57,7 +57,18 @@ namespace ScimServiceProvider.Services
         {
             // Set customer ID
             user.CustomerId = customerId;
-            
+
+            // SCIM compliance: Check for duplicate externalId for this customer
+            if (!string.IsNullOrEmpty(user.ExternalId))
+            {
+                var existing = await _context.Users
+                    .FirstOrDefaultAsync(u => u.ExternalId == user.ExternalId && u.CustomerId == customerId);
+                if (existing != null)
+                {
+                    throw new InvalidOperationException($"User with externalId '{user.ExternalId}' already exists for this customer.");
+                }
+            }
+
             user.Id = Guid.NewGuid().ToString();
             user.Created = DateTime.UtcNow;
             user.LastModified = DateTime.UtcNow;

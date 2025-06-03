@@ -35,14 +35,14 @@ namespace ScimServiceProvider.Tests.Helpers
         /// <summary>
         /// Generates a fake SCIM user with realistic data
         /// </summary>
-        public static ScimUser GenerateUser(string? id = null, string? userName = null, bool active = true, string? customerId = null)
+        public static ScimUser GenerateUser(string? id = null, string? userName = null, bool active = true, string? customerId = null, string? externalId = null)
         {
             var userFaker = new Faker<ScimUser>()
                 .RuleFor(u => u.Id, f => id ?? f.Random.Guid().ToString())
                 .RuleFor(u => u.UserName, f => userName ?? f.Internet.Email())
                 .RuleFor(u => u.DisplayName, f => f.Name.FullName())
                 .RuleFor(u => u.Active, active)
-                .RuleFor(u => u.ExternalId, f => f.Random.AlphaNumeric(10))
+                .RuleFor(u => u.ExternalId, f => externalId ?? f.Random.AlphaNumeric(10))
                 .RuleFor(u => u.CustomerId, f => customerId ?? DefaultCustomerId)
                 .RuleFor(u => u.Name, (f, u) => new Name
                 {
@@ -107,12 +107,12 @@ namespace ScimServiceProvider.Tests.Helpers
         /// <summary>
         /// Generates a fake SCIM group with realistic data
         /// </summary>
-        public static ScimGroup GenerateGroup(string? id = null, string? displayName = null, List<ScimUser>? members = null, string? customerId = null)
+        public static ScimGroup GenerateGroup(string? id = null, string? displayName = null, List<ScimUser>? members = null, string? customerId = null, string? externalId = null)
         {
             var groupFaker = new Faker<ScimGroup>()
                 .RuleFor(g => g.Id, f => id ?? f.Random.Guid().ToString())
                 .RuleFor(g => g.DisplayName, f => displayName ?? f.Commerce.Department())
-                .RuleFor(g => g.ExternalId, f => f.Random.AlphaNumeric(10))
+                .RuleFor(g => g.ExternalId, f => externalId ?? f.Random.AlphaNumeric(10))
                 .RuleFor(g => g.CustomerId, f => customerId ?? DefaultCustomerId)
                 .RuleFor(g => g.Members, (f, g) =>
                 {

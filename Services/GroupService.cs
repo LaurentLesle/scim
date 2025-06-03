@@ -51,7 +51,18 @@ namespace ScimServiceProvider.Services
         {
             // Set customer ID
             group.CustomerId = customerId;
-        
+
+            // SCIM compliance: Check for duplicate externalId for this customer
+            if (!string.IsNullOrEmpty(group.ExternalId))
+            {
+                var existing = await _context.Groups
+                    .FirstOrDefaultAsync(g => g.ExternalId == group.ExternalId && g.CustomerId == customerId);
+                if (existing != null)
+                {
+                    throw new InvalidOperationException($"Group with externalId '{group.ExternalId}' already exists for this customer.");
+                }
+            }
+
             group.Id = Guid.NewGuid().ToString();
             group.Created = DateTime.UtcNow;
             group.LastModified = DateTime.UtcNow;

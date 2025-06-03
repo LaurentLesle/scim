@@ -350,5 +350,23 @@ namespace ScimServiceProvider.Tests.Services
             // Note: The actual filtering logic depends on the implementation
             // This test verifies that filtering doesn't break the service
         }
+
+        [Fact]
+        public async Task CreateGroupAsync_WithDuplicateExternalId_ThrowsInvalidOperationException()
+        {
+            // Arrange
+            var externalId = "duplicate-external-id-123";
+            var group1 = ScimTestDataGenerator.GenerateGroup(externalId: externalId, customerId: _testCustomerId);
+            var group2 = ScimTestDataGenerator.GenerateGroup(externalId: externalId, customerId: _testCustomerId);
+            _context.Groups.Add(group1);
+            await _context.SaveChangesAsync();
+
+            // Act
+            Func<Task> act = async () => await _groupService.CreateGroupAsync(group2, _testCustomerId);
+
+            // Assert
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*already exists*");
+        }
     }
 }

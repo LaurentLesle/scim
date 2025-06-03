@@ -166,6 +166,24 @@ namespace ScimServiceProvider.Tests.Services
         }
 
         [Fact]
+        public async Task CreateUserAsync_WithDuplicateExternalId_ThrowsInvalidOperationException()
+        {
+            // Arrange
+            var externalId = "duplicate-user-external-id-123";
+            var user1 = ScimTestDataGenerator.GenerateUser(externalId: externalId, customerId: _testCustomerId);
+            var user2 = ScimTestDataGenerator.GenerateUser(externalId: externalId, customerId: _testCustomerId);
+            _context.Users.Add(user1);
+            await _context.SaveChangesAsync();
+
+            // Act
+            Func<Task> act = async () => await _userService.CreateUserAsync(user2, _testCustomerId);
+
+            // Assert
+            await act.Should().ThrowAsync<InvalidOperationException>()
+                .WithMessage("*already exists*");
+        }
+
+        [Fact]
         public async Task UpdateUserAsync_WithValidUser_UpdatesAndReturnsUser()
         {
             // Arrange
