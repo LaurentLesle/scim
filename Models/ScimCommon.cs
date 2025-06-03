@@ -6,6 +6,8 @@ namespace ScimServiceProvider.Models
         public int TotalResults { get; set; }
         public int StartIndex { get; set; } = 1;
         public int ItemsPerPage { get; set; }
+        [System.Text.Json.Serialization.JsonPropertyName("Resources")]
+        [Newtonsoft.Json.JsonProperty("Resources")]
         public List<T> Resources { get; set; } = new();
     }
 

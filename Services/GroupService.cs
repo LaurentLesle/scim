@@ -133,7 +133,8 @@ namespace ScimServiceProvider.Services
             if (displayNameMatch.Success)
             {
                 var displayName = displayNameMatch.Groups[1].Value;
-                query = query.Where(g => g.DisplayName == displayName);
+                // Case-insensitive comparison for SCIM compliance
+                query = query.Where(g => g.DisplayName.ToLower() == displayName.ToLower());
             }
 
             return query;

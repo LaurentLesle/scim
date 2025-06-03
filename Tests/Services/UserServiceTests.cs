@@ -143,6 +143,25 @@ namespace ScimServiceProvider.Tests.Services
         }
 
         [Fact]
+        public async Task GetUsersAsync_WithUserNameFilter_IsCaseInsensitive()
+        {
+            // Arrange
+            var testUsers = ScimTestDataGenerator.GenerateUsers(2);
+            testUsers[0].UserName = "waldo@ryan.uk";
+            _context.Users.AddRange(testUsers);
+            await _context.SaveChangesAsync();
+
+            // Act: filter with different case
+            var result = await _userService.GetUsersAsync(_testCustomerId, filter: "userName eq \"WALDO@RYAN.UK\"");
+
+            // Assert
+            result.Should().NotBeNull();
+            result.TotalResults.Should().Be(1);
+            result.Resources.Should().HaveCount(1);
+            result.Resources.First().UserName.Should().Be("waldo@ryan.uk");
+        }
+
+        [Fact]
         public async Task CreateUserAsync_WithValidUser_CreatesAndReturnsUser()
         {
             // Arrange

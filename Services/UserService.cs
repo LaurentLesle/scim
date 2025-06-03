@@ -76,6 +76,16 @@ namespace ScimServiceProvider.Services
             user.Meta.LastModified = user.LastModified;
             user.Meta.ResourceType = "User";
 
+            // Ensure proper schemas are set
+            user.Schemas = new List<string> { "urn:ietf:params:scim:schemas:core:2.0:User" };
+            if (user.EnterpriseUser != null)
+            {
+                if (!user.Schemas.Contains("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"))
+                {
+                    user.Schemas.Add("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
+                }
+            }
+
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
@@ -111,6 +121,16 @@ namespace ScimServiceProvider.Services
             existingUser.LastModified = DateTime.UtcNow;
             existingUser.Meta.LastModified = existingUser.LastModified;
 
+            // Ensure proper schemas are set
+            existingUser.Schemas = new List<string> { "urn:ietf:params:scim:schemas:core:2.0:User" };
+            if (existingUser.EnterpriseUser != null)
+            {
+                if (!existingUser.Schemas.Contains("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"))
+                {
+                    existingUser.Schemas.Add("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
+                }
+            }
+
             await _context.SaveChangesAsync();
             return existingUser;
         }
@@ -130,6 +150,16 @@ namespace ScimServiceProvider.Services
 
             user.LastModified = DateTime.UtcNow;
             user.Meta.LastModified = user.LastModified;
+
+            // Ensure proper schemas are set after patching
+            user.Schemas = new List<string> { "urn:ietf:params:scim:schemas:core:2.0:User" };
+            if (user.EnterpriseUser != null)
+            {
+                if (!user.Schemas.Contains("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"))
+                {
+                    user.Schemas.Add("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
+                }
+            }
 
             await _context.SaveChangesAsync();
             return user;
@@ -155,7 +185,8 @@ namespace ScimServiceProvider.Services
             if (userNameMatch.Success)
             {
                 var userName = userNameMatch.Groups[1].Value;
-                query = query.Where(u => u.UserName == userName);
+                // Case-insensitive comparison for SCIM compliance
+                query = query.Where(u => u.UserName.ToLower() == userName.ToLower());
             }
 
             // Add more filter implementations as needed

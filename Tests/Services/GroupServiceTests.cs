@@ -368,5 +368,24 @@ namespace ScimServiceProvider.Tests.Services
             await act.Should().ThrowAsync<InvalidOperationException>()
                 .WithMessage("*already exists*");
         }
+
+        [Fact]
+        public async Task GetGroupsAsync_WithDisplayNameFilter_IsCaseInsensitive()
+        {
+            // Arrange
+            var testGroups = ScimTestDataGenerator.GenerateGroups(2);
+            testGroups[0].DisplayName = "engineering team";
+            _context.Groups.AddRange(testGroups);
+            await _context.SaveChangesAsync();
+
+            // Act: filter with different case
+            var result = await _groupService.GetGroupsAsync(_testCustomerId, filter: "displayName eq \"ENGINEERING TEAM\"");
+
+            // Assert
+            result.Should().NotBeNull();
+            result.TotalResults.Should().Be(1);
+            result.Resources.Should().HaveCount(1);
+            result.Resources.First().DisplayName.Should().Be("engineering team");
+        }
     }
 }
