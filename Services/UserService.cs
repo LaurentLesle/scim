@@ -33,7 +33,7 @@ namespace ScimServiceProvider.Services
             return user;
         }
 
-        public async Task<ScimListResponse<ScimUser>> GetUsersAsync(string customerId, int startIndex = 1, int count = 10, string? filter = null)
+        public async Task<ScimListResponse<ScimUser>> GetUsersAsync(string customerId, int startIndex = 1, int count = 10, string? filter = null, string? attributes = null, string? excludedAttributes = null, string? sortBy = null, string? sortOrder = null)
         {
             var query = _context.Users
                 .Where(u => u.CustomerId == customerId)
@@ -43,6 +43,12 @@ namespace ScimServiceProvider.Services
             if (!string.IsNullOrEmpty(filter))
             {
                 query = ApplyFilter(query, filter);
+            }
+
+            // Apply sorting if provided
+            if (!string.IsNullOrEmpty(sortBy))
+            {
+                query = ApplySorting(query, sortBy, sortOrder);
             }
 
             var totalResults = await query.CountAsync();
@@ -55,6 +61,11 @@ namespace ScimServiceProvider.Services
             foreach (var user in users)
             {
                 CleanupEmptyCollections(user);
+                // Apply attribute selection if specified
+                if (!string.IsNullOrEmpty(attributes) || !string.IsNullOrEmpty(excludedAttributes))
+                {
+                    ApplyAttributeSelection(user, attributes, excludedAttributes);
+                }
             }
 
             return new ScimListResponse<ScimUser>
@@ -1020,6 +1031,85 @@ namespace ScimServiceProvider.Services
             }
 
             return null;
+        }
+
+        private IQueryable<ScimUser> ApplySorting(IQueryable<ScimUser> query, string sortBy, string? sortOrder = null)
+        {
+            var ascending = string.IsNullOrEmpty(sortOrder) || 
+                           string.Equals(sortOrder, "ascending", StringComparison.OrdinalIgnoreCase);
+
+            return sortBy.ToLower() switch
+            {
+                "username" => ascending ? query.OrderBy(u => u.UserName) : query.OrderByDescending(u => u.UserName),
+                "displayname" => ascending ? query.OrderBy(u => u.DisplayName) : query.OrderByDescending(u => u.DisplayName),
+                "created" => ascending ? query.OrderBy(u => u.Created) : query.OrderByDescending(u => u.Created),
+                "lastmodified" => ascending ? query.OrderBy(u => u.LastModified) : query.OrderByDescending(u => u.LastModified),
+                "name.givenname" => ascending ? query.OrderBy(u => u.Name!.GivenName) : query.OrderByDescending(u => u.Name!.GivenName),
+                "name.familyname" => ascending ? query.OrderBy(u => u.Name!.FamilyName) : query.OrderByDescending(u => u.Name!.FamilyName),
+                _ => query // Default: no sorting if sortBy is not recognized
+            };
+        }
+
+        private void ApplyAttributeSelection(ScimUser user, string? attributes, string? excludedAttributes)
+        {
+            var includedAttrs = string.IsNullOrEmpty(attributes) ? null : 
+                attributes.Split(',').Select(a => a.Trim().ToLower()).ToHashSet();
+            var excludedAttrs = string.IsNullOrEmpty(excludedAttributes) ? null : 
+                excludedAttributes.Split(',').Select(a => a.Trim().ToLower()).ToHashSet();
+
+            // Always include core SCIM attributes
+            var alwaysInclude = new HashSet<string> { "id", "schemas", "meta" };
+
+            // Helper function to check if an attribute should be included
+            bool ShouldInclude(string attrName)
+            {
+                var lowerAttr = attrName.ToLower();
+                
+                // Always include core attributes
+                if (alwaysInclude.Contains(lowerAttr)) return true;
+                
+                // If excluded attributes are specified and this attribute is excluded, don't include
+                if (excludedAttrs != null && excludedAttrs.Contains(lowerAttr)) return false;
+                
+                // If included attributes are specified, only include if it's in the list
+                if (includedAttrs != null) return includedAttrs.Contains(lowerAttr);
+                
+                // Default: include if no specific inclusion/exclusion rules apply
+                return true;
+            }
+
+            // Apply attribute filtering
+            if (!ShouldInclude("username")) user.UserName = null!;
+            if (!ShouldInclude("displayname")) user.DisplayName = null;
+            if (!ShouldInclude("nickname")) user.NickName = null;
+            if (!ShouldInclude("profileurl")) user.ProfileUrl = null;
+            if (!ShouldInclude("title")) user.Title = null;
+            if (!ShouldInclude("usertype")) user.UserType = null;
+            if (!ShouldInclude("preferredlanguage")) user.PreferredLanguage = null;
+            if (!ShouldInclude("locale")) user.Locale = null;
+            if (!ShouldInclude("timezone")) user.Timezone = null;
+            // Note: Active is non-nullable bool, so we can't set it to null for attribute filtering
+            if (!ShouldInclude("password")) user.Password = null;
+            if (!ShouldInclude("externalid")) user.ExternalId = null;
+            
+            if (!ShouldInclude("name")) user.Name = null;
+            if (!ShouldInclude("emails")) user.Emails = null;
+            if (!ShouldInclude("phonenumbers")) user.PhoneNumbers = null;
+            if (!ShouldInclude("addresses")) user.Addresses = null;
+            if (!ShouldInclude("roles")) user.Roles = null;
+            if (!ShouldInclude("groups")) user.Groups = null;
+            
+            // Handle enterprise extension
+            if (!ShouldInclude("urn:ietf:params:scim:schemas:extension:enterprise:2.0:user") && 
+                !ShouldInclude("enterpriseuser"))
+            {
+                user.EnterpriseUser = null;
+                // Remove enterprise schema if present
+                if (user.Schemas != null)
+                {
+                    user.Schemas = user.Schemas.Where(s => s != "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User").ToList();
+                }
+            }
         }
     }
 }

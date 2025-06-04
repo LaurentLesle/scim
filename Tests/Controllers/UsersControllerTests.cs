@@ -123,7 +123,7 @@ namespace ScimServiceProvider.Tests.Controllers
 
             // Assert
             var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
-            _mockUserService.Verify(s => s.GetUsersAsync(_testCustomerId, 1, 10, filter), Times.Once);
+            _mockUserService.Verify(s => s.GetUsersAsync(_testCustomerId, 1, 10, filter, null, null, null, null), Times.Once);
         }
 
         [Fact]

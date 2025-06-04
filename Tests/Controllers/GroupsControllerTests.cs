@@ -130,7 +130,7 @@ namespace ScimServiceProvider.Tests.Controllers
 
             // Assert
             result.Result.Should().BeOfType<OkObjectResult>();
-            _mockGroupService.Verify(s => s.GetGroupsAsync(_testCustomerId, 1, 10, filter), Times.Once);
+            _mockGroupService.Verify(s => s.GetGroupsAsync(_testCustomerId, 1, 10, filter, null, null, null, null), Times.Once);
         }
 
         [Fact]

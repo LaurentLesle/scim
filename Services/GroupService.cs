@@ -23,7 +23,7 @@ namespace ScimServiceProvider.Services
             return group;
         }
 
-        public async Task<ScimListResponse<ScimGroup>> GetGroupsAsync(string customerId, int startIndex = 1, int count = 10, string? filter = null)
+        public async Task<ScimListResponse<ScimGroup>> GetGroupsAsync(string customerId, int startIndex = 1, int count = 10, string? filter = null, string? attributes = null, string? excludedAttributes = null, string? sortBy = null, string? sortOrder = null)
         {
             var query = _context.Groups
                 .Where(g => g.CustomerId == customerId)
@@ -33,6 +33,12 @@ namespace ScimServiceProvider.Services
             if (!string.IsNullOrEmpty(filter))
             {
                 query = ApplyFilter(query, filter);
+            }
+
+            // Apply sorting if provided
+            if (!string.IsNullOrEmpty(sortBy))
+            {
+                query = ApplySorting(query, sortBy, sortOrder);
             }
 
             var totalResults = await query.CountAsync();
@@ -45,6 +51,11 @@ namespace ScimServiceProvider.Services
             foreach (var group in groups)
             {
                 CleanupEmptyCollections(group);
+                // Apply attribute selection if specified
+                if (!string.IsNullOrEmpty(attributes) || !string.IsNullOrEmpty(excludedAttributes))
+                {
+                    ApplyAttributeSelection(group, attributes, excludedAttributes);
+                }
             }
 
             return new ScimListResponse<ScimGroup>
@@ -271,6 +282,54 @@ namespace ScimServiceProvider.Services
         private void CleanupEmptyCollections(ScimGroup group)
         {
             if (group.Members?.Count == 0) group.Members = null;
+        }
+
+        private IQueryable<ScimGroup> ApplySorting(IQueryable<ScimGroup> query, string sortBy, string? sortOrder = null)
+        {
+            var ascending = string.IsNullOrEmpty(sortOrder) || 
+                           string.Equals(sortOrder, "ascending", StringComparison.OrdinalIgnoreCase);
+
+            return sortBy.ToLower() switch
+            {
+                "displayname" => ascending ? query.OrderBy(g => g.DisplayName) : query.OrderByDescending(g => g.DisplayName),
+                "created" => ascending ? query.OrderBy(g => g.Created) : query.OrderByDescending(g => g.Created),
+                "lastmodified" => ascending ? query.OrderBy(g => g.LastModified) : query.OrderByDescending(g => g.LastModified),
+                _ => query // Default: no sorting if sortBy is not recognized
+            };
+        }
+
+        private void ApplyAttributeSelection(ScimGroup group, string? attributes, string? excludedAttributes)
+        {
+            var includedAttrs = string.IsNullOrEmpty(attributes) ? null : 
+                attributes.Split(',').Select(a => a.Trim().ToLower()).ToHashSet();
+            var excludedAttrs = string.IsNullOrEmpty(excludedAttributes) ? null : 
+                excludedAttributes.Split(',').Select(a => a.Trim().ToLower()).ToHashSet();
+
+            // Always include core SCIM attributes
+            var alwaysInclude = new HashSet<string> { "id", "schemas", "meta" };
+
+            // Helper function to check if an attribute should be included
+            bool ShouldInclude(string attrName)
+            {
+                var lowerAttr = attrName.ToLower();
+                
+                // Always include core attributes
+                if (alwaysInclude.Contains(lowerAttr)) return true;
+                
+                // If excluded attributes are specified and this attribute is excluded, don't include
+                if (excludedAttrs != null && excludedAttrs.Contains(lowerAttr)) return false;
+                
+                // If included attributes are specified, only include if it's in the list
+                if (includedAttrs != null) return includedAttrs.Contains(lowerAttr);
+                
+                // Default: include if no specific inclusion/exclusion rules apply
+                return true;
+            }
+
+            // Apply attribute filtering
+            if (!ShouldInclude("displayname")) group.DisplayName = null!;
+            if (!ShouldInclude("externalid")) group.ExternalId = null;
+            if (!ShouldInclude("members")) group.Members = null;
         }
     }
 }

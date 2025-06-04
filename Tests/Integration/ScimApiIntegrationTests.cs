@@ -58,7 +58,7 @@ namespace ScimServiceProvider.Tests.Integration
         {
             var testCustomer = new Customer
             {
-                Id = Guid.NewGuid().ToString(),
+                Id = ScimTestDataGenerator.DefaultCustomerId, // Use the same ID as the test data generator
                 Name = "Test Customer",
                 TenantId = TestTenantId,
                 IsActive = true,
@@ -709,6 +709,95 @@ namespace ScimServiceProvider.Tests.Integration
 
             // Verify schemas include enterprise extension
             retrievedUser.Schemas.Should().Contain("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
+        }
+
+        [Fact]
+        public async Task GetUsers_WithAttributesParameter_ReturnsFilteredAttributes()
+        {
+            await SetAuthHeaderAsync();
+            
+            // Arrange - Create a test user first with a unique username to avoid conflicts
+            var uniqueUserName = $"test-attributes-{Guid.NewGuid()}@example.com";
+            var newUser = ScimTestDataGenerator.GenerateUser(userName: uniqueUserName);
+            newUser.Id = null;
+            
+            var createContent = new StringContent(
+                JsonConvert.SerializeObject(newUser),
+                Encoding.UTF8,
+                "application/scim+json");
+
+            var createResponse = await _client.PostAsync("/scim/v2/Users", createContent);
+            createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+            var createdUserJson = await createResponse.Content.ReadAsStringAsync();
+            var createdUser = JsonConvert.DeserializeObject<ScimUser>(createdUserJson);
+
+            // Act - Use a filter to get only our specific user, testing both attributes and filtering
+            var response = await _client.GetAsync($"/scim/v2/Users?filter=userName eq \"{uniqueUserName}\"&attributes=userName,displayName");
+
+            // Assert
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            var content = await response.Content.ReadAsStringAsync();
+            var listResponse = JsonConvert.DeserializeObject<ScimListResponse<ScimUser>>(content);
+            
+            listResponse.Should().NotBeNull();
+            listResponse!.TotalResults.Should().Be(1, "exactly one user should match our unique filter");
+            listResponse.Resources.Should().NotBeNull();
+            listResponse.Resources!.Should().HaveCount(1);
+            
+            var user = listResponse.Resources![0];
+            
+            // Should have the requested attributes
+            user.UserName.Should().Be(uniqueUserName);
+            user.DisplayName.Should().NotBeNullOrEmpty();
+            
+            // Should always have core attributes regardless of attributes parameter
+            user.Id.Should().NotBeNullOrEmpty();
+            user.Schemas.Should().NotBeNull();
+            user.Meta.Should().NotBeNull();
+        }
+
+        [Fact]
+        public async Task PostUsersSearch_WithValidSearchRequest_ReturnsResults()
+        {
+            await SetAuthHeaderAsync();
+            
+            // Arrange - Create a test user first
+            var newUser = ScimTestDataGenerator.GenerateUser();
+            newUser.Id = null;
+            
+            var createContent = new StringContent(
+                JsonConvert.SerializeObject(newUser),
+                Encoding.UTF8,
+                "application/scim+json");
+
+            var createResponse = await _client.PostAsync("/scim/v2/Users", createContent);
+            createResponse.StatusCode.Should().Be(HttpStatusCode.Created);
+            var createdUserJson = await createResponse.Content.ReadAsStringAsync();
+            var createdUser = JsonConvert.DeserializeObject<ScimUser>(createdUserJson);
+
+            var searchRequest = new ScimSearchRequest
+            {
+                Filter = $"userName eq \"{createdUser!.UserName}\"",
+                Attributes = "userName,displayName",
+                StartIndex = 1,
+                Count = 10
+            };
+
+            var requestJson = JsonConvert.SerializeObject(searchRequest);
+            var requestContent = new StringContent(requestJson, Encoding.UTF8, "application/scim+json");
+
+            // Act
+            var response = await _client.PostAsync("/scim/v2/Users/.search", requestContent);
+
+            // Assert
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            var content = await response.Content.ReadAsStringAsync();
+            var listResponse = JsonConvert.DeserializeObject<ScimListResponse<ScimUser>>(content);
+            
+            listResponse.Should().NotBeNull();
+            listResponse!.TotalResults.Should().Be(1);
+            var user = listResponse.Resources!.First();
+            user.UserName.Should().Be(createdUser.UserName);
         }
     }
 }

@@ -36,11 +36,15 @@ namespace ScimServiceProvider.Controllers
         public async Task<ActionResult<ScimListResponse<ScimGroup>>> GetGroups(
             [FromQuery] int startIndex = 1,
             [FromQuery] int count = 10,
-            [FromQuery] string? filter = null)
+            [FromQuery] string? filter = null,
+            [FromQuery] string? attributes = null,
+            [FromQuery] string? excludedAttributes = null,
+            [FromQuery] string? sortBy = null,
+            [FromQuery] string? sortOrder = null)
         {
             var customerId = GetCustomerId();
-            _logger.LogInformation("👥 GET Groups requested for customer: {CustomerId}, startIndex: {StartIndex}, count: {Count}, filter: {Filter}", 
-                customerId, startIndex, count, filter ?? "none");
+            _logger.LogInformation("👥 GET Groups requested for customer: {CustomerId}, startIndex: {StartIndex}, count: {Count}, filter: {Filter}, attributes: {Attributes}, sortBy: {SortBy}", 
+                customerId, startIndex, count, filter ?? "none", attributes ?? "none", sortBy ?? "none");
             
             // Validate parameters according to SCIM spec
             if (startIndex <= 0)
@@ -63,9 +67,22 @@ namespace ScimServiceProvider.Controllers
                 });
             }
 
+            // Validate sortOrder if provided
+            if (!string.IsNullOrEmpty(sortOrder) && 
+                !string.Equals(sortOrder, "ascending", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(sortOrder, "descending", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("❌ Invalid sortOrder: {SortOrder} - must be 'ascending' or 'descending'", sortOrder);
+                return BadRequest(new ScimError 
+                { 
+                    Status = 400, 
+                    Detail = "sortOrder must be 'ascending' or 'descending'" 
+                });
+            }
+
             try
             {
-                var result = await _groupService.GetGroupsAsync(customerId, startIndex, count, filter);
+                var result = await _groupService.GetGroupsAsync(customerId, startIndex, count, filter, attributes, excludedAttributes, sortBy, sortOrder);
                 _logger.LogInformation("✅ Retrieved {GroupCount} groups for customer: {CustomerId}", 
                     result.TotalResults, customerId);
                 return Ok(result);
@@ -304,6 +321,76 @@ namespace ScimServiceProvider.Controllers
                 { 
                     Status = 500, 
                     Detail = ex.Message 
+                });
+            }
+        }
+
+        [HttpPost(".search")]
+        public async Task<ActionResult<ScimListResponse<ScimGroup>>> SearchGroups([FromBody] ScimSearchRequest searchRequest)
+        {
+            var customerId = GetCustomerId();
+            _logger.LogInformation("🔍 POST Groups/.search requested for customer: {CustomerId}, filter: {Filter}", 
+                customerId, searchRequest?.Filter ?? "none");
+
+            if (searchRequest == null)
+            {
+                return BadRequest(new ScimError
+                {
+                    Status = 400,
+                    Detail = "Search request body is required"
+                });
+            }
+
+            // Validate parameters
+            var startIndex = searchRequest.StartIndex ?? 1;
+            var count = searchRequest.Count ?? 10;
+
+            if (startIndex <= 0)
+            {
+                return BadRequest(new ScimError
+                {
+                    Status = 400,
+                    Detail = "startIndex must be greater than 0"
+                });
+            }
+
+            if (count <= 0)
+            {
+                return BadRequest(new ScimError
+                {
+                    Status = 400,
+                    Detail = "count must be greater than 0"
+                });
+            }
+
+            // Validate sortOrder if provided
+            if (!string.IsNullOrEmpty(searchRequest.SortOrder) &&
+                !string.Equals(searchRequest.SortOrder, "ascending", StringComparison.OrdinalIgnoreCase) &&
+                !string.Equals(searchRequest.SortOrder, "descending", StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new ScimError
+                {
+                    Status = 400,
+                    Detail = "sortOrder must be 'ascending' or 'descending'"
+                });
+            }
+
+            try
+            {
+                var result = await _groupService.GetGroupsAsync(customerId, startIndex, count, 
+                    searchRequest.Filter, searchRequest.Attributes, searchRequest.ExcludedAttributes,
+                    searchRequest.SortBy, searchRequest.SortOrder);
+                _logger.LogInformation("✅ Search returned {GroupCount} groups for customer: {CustomerId}", 
+                    result.TotalResults, customerId);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("❌ Error in search groups: {ErrorMessage}", ex.Message);
+                return StatusCode(500, new ScimError
+                {
+                    Status = 500,
+                    Detail = ex.Message
                 });
             }
         }

@@ -26,8 +26,8 @@ namespace ScimServiceProvider.Tests.Helpers
                 .ReturnsAsync((string username, string customerId) => users.FirstOrDefault(u => u.UserName == username && u.CustomerId == customerId));
 
             // Setup GetUsersAsync
-            mockService.Setup(s => s.GetUsersAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>()))
-                .ReturnsAsync((string customerId, int startIndex, int count, string? filter) =>
+            mockService.Setup(s => s.GetUsersAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>()))
+                .ReturnsAsync((string customerId, int startIndex, int count, string? filter, string? attributes, string? excludedAttributes, string? sortBy, string? sortOrder) =>
                 {
                     var filteredUsers = users.Where(u => u.CustomerId == customerId).AsQueryable();
 
@@ -148,8 +148,8 @@ namespace ScimServiceProvider.Tests.Helpers
                 .ReturnsAsync((string id, string customerId) => groups.FirstOrDefault(g => g.Id == id && g.CustomerId == customerId));
 
             // Setup GetGroupsAsync
-            mockService.Setup(s => s.GetGroupsAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>()))
-                .ReturnsAsync((string customerId, int startIndex, int count, string? filter) =>
+            mockService.Setup(s => s.GetGroupsAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>(), It.IsAny<string?>()))
+                .ReturnsAsync((string customerId, int startIndex, int count, string? filter, string? attributes, string? excludedAttributes, string? sortBy, string? sortOrder) =>
                 {
                     var filteredGroups = groups.Where(g => g.CustomerId == customerId).AsQueryable();
 
