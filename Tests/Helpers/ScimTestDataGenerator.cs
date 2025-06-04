@@ -63,6 +63,28 @@ namespace ScimServiceProvider.Tests.Helpers
                     new() { Value = f.Phone.PhoneNumber(), Type = "work", Primary = true },
                     new() { Value = f.Phone.PhoneNumber(), Type = "mobile", Primary = false }
                 }.Take(f.Random.Int(0, 2)).ToList())
+                .RuleFor(u => u.Ims, f => f.Random.Bool(0.3f) ? new List<InstantMessaging>
+                {
+                    new() { Value = f.Internet.UserName(), Type = "skype", Primary = true },
+                    new() { Value = f.Internet.UserName(), Type = "teams", Primary = false }
+                }.Take(f.Random.Int(1, 2)).ToList() : null)
+                .RuleFor(u => u.Photos, f => f.Random.Bool(0.2f) ? new List<Photo>
+                {
+                    new() { Value = f.Internet.Avatar(), Type = "photo", Primary = true }
+                }.ToList() : null)
+                .RuleFor(u => u.Entitlements, f => f.Random.Bool(0.4f) ? new List<Entitlement>
+                {
+                    new() { Value = f.Commerce.Product(), Type = "license", Primary = true },
+                    new() { Value = f.Commerce.Product(), Type = "access", Primary = false }
+                }.Take(f.Random.Int(1, 2)).ToList() : null)
+                .RuleFor(u => u.Roles, f => f.Random.Bool(0.5f) ? new List<Role>
+                {
+                    new() { Value = f.Name.JobTitle(), Type = "role", Primary = true }
+                }.ToList() : null)
+                .RuleFor(u => u.X509Certificates, f => f.Random.Bool(0.1f) ? new List<X509Certificate>
+                {
+                    new() { Value = f.Random.Hash(128), Type = "certificate", Primary = true }
+                }.ToList() : null)
                 .RuleFor(u => u.Addresses, f => new List<Address>
                 {
                     new()

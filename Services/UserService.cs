@@ -549,7 +549,7 @@ namespace ScimServiceProvider.Services
                     Role? role = null;
                     if (filterAttr.Equals("primary", StringComparison.OrdinalIgnoreCase))
                     {
-                        role = user.Roles.FirstOrDefault(r => string.Equals(r.Primary, filterValue, StringComparison.OrdinalIgnoreCase));
+                        role = user.Roles.FirstOrDefault(r => r.Primary == (bool.TryParse(filterValue, out var pv) && pv));
                     }
                     else if (filterAttr.Equals("type", StringComparison.OrdinalIgnoreCase))
                     {
@@ -568,7 +568,7 @@ namespace ScimServiceProvider.Services
                     {
                         // Create new role with filter criteria
                         role = new Role();
-                        if (filterAttr.Equals("primary", StringComparison.OrdinalIgnoreCase)) role.Primary = filterValue;
+                        if (filterAttr.Equals("primary", StringComparison.OrdinalIgnoreCase)) role.Primary = bool.TryParse(filterValue, out var pv) && pv;
                         else if (filterAttr.Equals("type", StringComparison.OrdinalIgnoreCase)) role.Type = filterValue;
                         else if (filterAttr.Equals("value", StringComparison.OrdinalIgnoreCase)) role.Value = filterValue;
                         else if (filterAttr.Equals("display", StringComparison.OrdinalIgnoreCase)) role.Display = filterValue;
@@ -582,7 +582,7 @@ namespace ScimServiceProvider.Services
                     else if (attr.Equals("type", StringComparison.OrdinalIgnoreCase))
                         role.Type = operation.Value?.ToString() ?? string.Empty;
                     else if (attr.Equals("primary", StringComparison.OrdinalIgnoreCase))
-                        role.Primary = operation.Value?.ToString();
+                        role.Primary = operation.Value is bool b ? b : bool.TryParse(operation.Value?.ToString(), out var pb) && pb;
                 }
                 return;
             }
@@ -789,7 +789,7 @@ namespace ScimServiceProvider.Services
                         Role? role = null;
                         if (filterAttr.Equals("primary", StringComparison.OrdinalIgnoreCase))
                         {
-                            role = user.Roles.FirstOrDefault(r => string.Equals(r.Primary, filterValue, StringComparison.OrdinalIgnoreCase));
+                            role = user.Roles.FirstOrDefault(r => r.Primary == (bool.TryParse(filterValue, out var pv) && pv));
                         }
                         else if (filterAttr.Equals("type", StringComparison.OrdinalIgnoreCase))
                         {
@@ -813,7 +813,7 @@ namespace ScimServiceProvider.Services
                             else if (attr.Equals("type", StringComparison.OrdinalIgnoreCase))
                                 role.Type = operation.Value?.ToString() ?? string.Empty;
                             else if (attr.Equals("primary", StringComparison.OrdinalIgnoreCase))
-                                role.Primary = operation.Value?.ToString();
+                                role.Primary = operation.Value is bool b ? b : bool.TryParse(operation.Value?.ToString(), out var pb) && pb;
                         }
                     }
                 }

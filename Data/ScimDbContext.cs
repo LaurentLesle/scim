@@ -19,6 +19,10 @@ namespace ScimServiceProvider.Data
         {
             base.OnModelCreating(modelBuilder);
 
+            // Ignore value object types to prevent EF Core from treating them as entities
+            modelBuilder.Ignore<InstantMessaging>();
+            modelBuilder.Ignore<Photo>();
+
             // Configure Customer entity
             modelBuilder.Entity<Customer>(entity =>
             {
@@ -102,6 +106,42 @@ namespace ScimServiceProvider.Data
                         v => JsonConvert.SerializeObject(v),
                         v => JsonConvert.DeserializeObject<List<Role>>(v) ?? new List<Role>(),
                         new ValueComparer<List<Role>>(
+                            (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
+                            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                            c => c.ToList()));
+
+                entity.Property(e => e.Entitlements)
+                    .HasConversion(
+                        v => JsonConvert.SerializeObject(v),
+                        v => JsonConvert.DeserializeObject<List<Entitlement>>(v) ?? new List<Entitlement>(),
+                        new ValueComparer<List<Entitlement>>(
+                            (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
+                            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                            c => c.ToList()));
+
+                entity.Property(e => e.Ims)
+                    .HasConversion(
+                        v => JsonConvert.SerializeObject(v),
+                        v => JsonConvert.DeserializeObject<List<InstantMessaging>>(v) ?? new List<InstantMessaging>(),
+                        new ValueComparer<List<InstantMessaging>>(
+                            (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
+                            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                            c => c.ToList()));
+
+                entity.Property(e => e.Photos)
+                    .HasConversion(
+                        v => JsonConvert.SerializeObject(v),
+                        v => JsonConvert.DeserializeObject<List<Photo>>(v) ?? new List<Photo>(),
+                        new ValueComparer<List<Photo>>(
+                            (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
+                            c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
+                            c => c.ToList()));
+
+                entity.Property(e => e.X509Certificates)
+                    .HasConversion(
+                        v => JsonConvert.SerializeObject(v),
+                        v => JsonConvert.DeserializeObject<List<X509Certificate>>(v) ?? new List<X509Certificate>(),
+                        new ValueComparer<List<X509Certificate>>(
                             (c1, c2) => c1 != null && c2 != null && c1.SequenceEqual(c2),
                             c => c.Aggregate(0, (a, v) => HashCode.Combine(a, v.GetHashCode())),
                             c => c.ToList()));

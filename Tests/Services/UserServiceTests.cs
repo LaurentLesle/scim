@@ -62,8 +62,8 @@ namespace ScimServiceProvider.Tests.Services
                 CustomerId = _testCustomerId,
                 Roles = new List<Role>
                 {
-                    new Role { Value = "admin", Display = "Admin", Type = "system", Primary = "True" },
-                    new Role { Value = "user", Display = "User", Type = "system", Primary = "False" }
+                    new Role { Value = "admin", Display = "Admin", Type = "system", Primary = true },
+                    new Role { Value = "user", Display = "User", Type = "system", Primary = false }
                 }
             };
             _context.Users.Add(user);
@@ -83,8 +83,8 @@ namespace ScimServiceProvider.Tests.Services
 
             // Assert
             result.Should().NotBeNull();
-            result!.Roles.Should().NotContain(r => r.Primary == "True");
-            result.Roles.Should().ContainSingle(r => r.Primary == "False");
+            result!.Roles.Should().NotContain(r => r.Primary == true);
+            result.Roles.Should().ContainSingle(r => r.Primary == false);
         }
 
         [Fact]
@@ -98,7 +98,7 @@ namespace ScimServiceProvider.Tests.Services
                 CustomerId = _testCustomerId,
                 Roles = new List<Role>
                 {
-                    new Role { Value = "admin", Display = "Admin", Type = "system", Primary = "True" }
+                    new Role { Value = "admin", Display = "Admin", Type = "system", Primary = true }
                 }
             };
             _context.Users.Add(user);
@@ -118,7 +118,7 @@ namespace ScimServiceProvider.Tests.Services
 
             // Assert
             result.Should().NotBeNull();
-            result!.Roles.Should().ContainSingle(r => r.Primary == "True" && r.Display == "SuperAdmin");
+            result!.Roles.Should().ContainSingle(r => r.Primary == true && r.Display == "SuperAdmin");
         }
 
         [Fact]
@@ -155,8 +155,8 @@ namespace ScimServiceProvider.Tests.Services
 
             // Assert
             result.Should().NotBeNull();
-            result!.Roles.Should().ContainSingle(r => r.Primary == "True" && r.Display == "Director" && r.Value == "manager");
-            result.Roles.Should().ContainSingle(r => r.Primary == "False" && r.Display == "Employee" && r.Value == "employee");
+            result!.Roles.Should().ContainSingle(r => r.Primary == true && r.Display == "Director" && r.Value == "manager");
+            result.Roles.Should().ContainSingle(r => r.Primary == false && r.Display == "Employee" && r.Value == "employee");
         }
         // ...existing code...
 
@@ -848,7 +848,7 @@ namespace ScimServiceProvider.Tests.Services
                 {
                     new() 
                     { 
-                        Primary = "True", 
+                        Primary = true, 
                         Display = "DTFSIZWBZYQD", 
                         Value = "LXWDSUWSDLDZ", 
                         Type = "BYDQIEEGJBTJ" 
@@ -970,7 +970,7 @@ namespace ScimServiceProvider.Tests.Services
             role.Display.Should().Be("WJFYANRRKBZY");
             role.Value.Should().Be("YJUMXBISKVVV");
             role.Type.Should().Be("PMZUZHVPFIAO");
-            role.Primary.Should().Be("True");
+            role.Primary.Should().Be(true);
             
             // Verify bulk update changes
             result.Active.Should().BeTrue();

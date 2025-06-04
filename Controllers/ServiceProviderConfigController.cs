@@ -5,7 +5,6 @@ namespace ScimServiceProvider.Controllers
 {
     [ApiController]
     [Route("scim/v2")]
-    [Route("")] // Support both /scim/v2 and root level endpoints
     [ScimResult]
     public class ServiceProviderConfigController : ControllerBase
     {

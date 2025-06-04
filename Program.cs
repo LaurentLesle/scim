@@ -20,6 +20,9 @@ builder.Services.AddControllers(options =>
     options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
     // Exclude null values from JSON responses to comply with SCIM 2.0 standards
     options.JsonSerializerOptions.DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull;
+    // Add custom boolean converter to handle string to boolean conversion
+    options.JsonSerializerOptions.Converters.Add(new ScimServiceProvider.Converters.BooleanJsonConverter());
+    options.JsonSerializerOptions.Converters.Add(new ScimServiceProvider.Converters.NullableBooleanJsonConverter());
 });
 
 // Configure Entity Framework

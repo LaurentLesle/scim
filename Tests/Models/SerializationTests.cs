@@ -155,7 +155,7 @@ namespace ScimServiceProvider.Tests.Models
                 Value = "admin",
                 Display = null,     // This should be ignored when null
                 Type = "role",
-                Primary = null      // This should be ignored when null
+                Primary = false     // This should not be ignored as it's not nullable
             };
 
             // Act
@@ -163,7 +163,7 @@ namespace ScimServiceProvider.Tests.Models
 
             // Assert
             Assert.DoesNotContain("\"display\"", json);
-            Assert.DoesNotContain("\"primary\"", json);
+            Assert.Contains("\"primary\"", json); // Primary is now bool, not nullable
             Assert.Contains("\"value\":\"admin\"", json);
             Assert.Contains("\"type\":\"role\"", json);
         }

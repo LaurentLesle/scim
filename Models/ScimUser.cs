@@ -79,6 +79,14 @@ namespace ScimServiceProvider.Models
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public List<PhoneNumber>? PhoneNumbers { get; set; }
         
+        [System.Text.Json.Serialization.JsonPropertyName("ims")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public List<InstantMessaging>? Ims { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("photos")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public List<Photo>? Photos { get; set; }
+        
         [System.Text.Json.Serialization.JsonPropertyName("addresses")]
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public List<Address>? Addresses { get; set; }
@@ -87,9 +95,17 @@ namespace ScimServiceProvider.Models
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public List<GroupMembership>? Groups { get; set; }
         
+        [System.Text.Json.Serialization.JsonPropertyName("entitlements")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public List<Entitlement>? Entitlements { get; set; }
+        
         [System.Text.Json.Serialization.JsonPropertyName("roles")]
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public List<Role>? Roles { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("x509Certificates")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public List<X509Certificate>? X509Certificates { get; set; }
         
         // Enterprise extension
         [System.Text.Json.Serialization.JsonPropertyName("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User")]
@@ -270,6 +286,10 @@ namespace ScimServiceProvider.Models
         [System.Text.Json.Serialization.JsonPropertyName("value")]
         public string Value { get; set; } = string.Empty;
         
+        [System.Text.Json.Serialization.JsonPropertyName("$ref")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? Ref { get; set; }
+        
         [System.Text.Json.Serialization.JsonPropertyName("display")]
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public string? Display { get; set; }
@@ -282,6 +302,7 @@ namespace ScimServiceProvider.Models
             if (other is null) return false;
             if (ReferenceEquals(this, other)) return true;
             return Value == other.Value && 
+                   Ref == other.Ref &&
                    Display == other.Display && 
                    Type == other.Type;
         }
@@ -293,7 +314,7 @@ namespace ScimServiceProvider.Models
 
         public override int GetHashCode()
         {
-            return HashCode.Combine(Value, Display, Type);
+            return HashCode.Combine(Value, Ref, Display, Type);
         }
     }
 
@@ -310,8 +331,7 @@ namespace ScimServiceProvider.Models
         public string Type { get; set; } = string.Empty;
         
         [System.Text.Json.Serialization.JsonPropertyName("primary")]
-        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-        public string? Primary { get; set; }
+        public bool Primary { get; set; } = false;
 
         public bool Equals(Role? other)
         {
@@ -414,5 +434,149 @@ namespace ScimServiceProvider.Models
         [System.Text.Json.Serialization.JsonPropertyName("version")]
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public string? Version { get; set; }
+    }
+
+    public class InstantMessaging : IEquatable<InstantMessaging>
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("value")]
+        public string Value { get; set; } = string.Empty;
+        
+        [System.Text.Json.Serialization.JsonPropertyName("display")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? Display { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("type")]
+        public string Type { get; set; } = string.Empty;
+        
+        [System.Text.Json.Serialization.JsonPropertyName("primary")]
+        public bool Primary { get; set; } = false;
+
+        public bool Equals(InstantMessaging? other)
+        {
+            if (other is null) return false;
+            if (ReferenceEquals(this, other)) return true;
+            return Value == other.Value && 
+                   Display == other.Display && 
+                   Type == other.Type && 
+                   Primary == other.Primary;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return Equals(obj as InstantMessaging);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Value, Display, Type, Primary);
+        }
+    }
+
+    public class Photo : IEquatable<Photo>
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("value")]
+        public string Value { get; set; } = string.Empty;
+        
+        [System.Text.Json.Serialization.JsonPropertyName("display")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? Display { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("type")]
+        public string Type { get; set; } = string.Empty;
+        
+        [System.Text.Json.Serialization.JsonPropertyName("primary")]
+        public bool Primary { get; set; } = false;
+
+        public bool Equals(Photo? other)
+        {
+            if (other is null) return false;
+            if (ReferenceEquals(this, other)) return true;
+            return Value == other.Value && 
+                   Display == other.Display && 
+                   Type == other.Type && 
+                   Primary == other.Primary;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return Equals(obj as Photo);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Value, Display, Type, Primary);
+        }
+    }
+
+    public class Entitlement : IEquatable<Entitlement>
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("value")]
+        public string Value { get; set; } = string.Empty;
+        
+        [System.Text.Json.Serialization.JsonPropertyName("display")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? Display { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("type")]
+        public string Type { get; set; } = string.Empty;
+        
+        [System.Text.Json.Serialization.JsonPropertyName("primary")]
+        public bool Primary { get; set; } = false;
+
+        public bool Equals(Entitlement? other)
+        {
+            if (other is null) return false;
+            if (ReferenceEquals(this, other)) return true;
+            return Value == other.Value && 
+                   Display == other.Display && 
+                   Type == other.Type && 
+                   Primary == other.Primary;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return Equals(obj as Entitlement);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Value, Display, Type, Primary);
+        }
+    }
+
+    public class X509Certificate : IEquatable<X509Certificate>
+    {
+        [System.Text.Json.Serialization.JsonPropertyName("value")]
+        public string Value { get; set; } = string.Empty;
+        
+        [System.Text.Json.Serialization.JsonPropertyName("display")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? Display { get; set; }
+        
+        [System.Text.Json.Serialization.JsonPropertyName("type")]
+        public string Type { get; set; } = string.Empty;
+        
+        [System.Text.Json.Serialization.JsonPropertyName("primary")]
+        public bool Primary { get; set; } = false;
+
+        public bool Equals(X509Certificate? other)
+        {
+            if (other is null) return false;
+            if (ReferenceEquals(this, other)) return true;
+            return Value == other.Value && 
+                   Display == other.Display && 
+                   Type == other.Type && 
+                   Primary == other.Primary;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return Equals(obj as X509Certificate);
+        }
+
+        public override int GetHashCode()
+        {
+            return HashCode.Combine(Value, Display, Type, Primary);
+        }
     }
 }
