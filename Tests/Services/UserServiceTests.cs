@@ -956,11 +956,11 @@ namespace ScimServiceProvider.Tests.Services
             workPhone.Value.Should().Be("62-106-7825");
             workPhone.Primary.Should().BeTrue();
             
-            var mobilePhone = result.PhoneNumbers.First(p => p.Type == "mobile");
+            var mobilePhone = result.PhoneNumbers!.First(p => p.Type == "mobile");
             mobilePhone.Value.Should().Be("62-106-7825");
             mobilePhone.Primary.Should().BeFalse();
             
-            var faxPhone = result.PhoneNumbers.First(p => p.Type == "fax");
+            var faxPhone = result.PhoneNumbers!.First(p => p.Type == "fax");
             faxPhone.Value.Should().Be("62-106-7825");
             faxPhone.Primary.Should().BeFalse();
             

@@ -5,6 +5,7 @@ namespace ScimServiceProvider.Controllers
 {
     [ApiController]
     [Route("scim/v2")]
+    [Route("")] // Support both /scim/v2 and root level endpoints
     [ScimResult]
     public class ServiceProviderConfigController : ControllerBase
     {
@@ -23,13 +24,56 @@ namespace ScimServiceProvider.Controllers
         [HttpGet("ResourceTypes")]
         public ActionResult GetResourceTypes()
         {
-            var resourceTypes = new
+            var resourceTypes = new object[]
             {
-                schemas = new[] { "urn:ietf:params:scim:api:messages:2.0:ListResponse" },
-                totalResults = 2,
-                Resources = new[]
+                new
                 {
-                    new
+                    schemas = new[] { "urn:ietf:params:scim:schemas:core:2.0:ResourceType" },
+                    id = "User",
+                    name = "User",
+                    endpoint = "/Users",
+                    description = "User Account",
+                    schema = "urn:ietf:params:scim:schemas:core:2.0:User",
+                    schemaExtensions = new[]
+                    {
+                        new
+                        {
+                            schema = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User",
+                            required = true
+                        }
+                    },
+                    meta = new
+                    {
+                        location = "https://example.com/v2/ResourceTypes/User",
+                        resourceType = "ResourceType"
+                    }
+                },
+                new
+                {
+                    schemas = new[] { "urn:ietf:params:scim:schemas:core:2.0:ResourceType" },
+                    id = "Group",
+                    name = "Group",
+                    endpoint = "/Groups",
+                    description = "Group",
+                    schema = "urn:ietf:params:scim:schemas:core:2.0:Group",
+                    meta = new
+                    {
+                        location = "https://example.com/v2/ResourceTypes/Group",
+                        resourceType = "ResourceType"
+                    }
+                }
+            };
+
+            return Ok(resourceTypes);
+        }
+
+        [HttpGet("ResourceTypes/{id}")]
+        public ActionResult GetResourceType(string id)
+        {
+            switch (id.ToLower())
+            {
+                case "user":
+                    return Ok(new
                     {
                         schemas = new[] { "urn:ietf:params:scim:schemas:core:2.0:ResourceType" },
                         id = "User",
@@ -37,13 +81,22 @@ namespace ScimServiceProvider.Controllers
                         endpoint = "/Users",
                         description = "User Account",
                         schema = "urn:ietf:params:scim:schemas:core:2.0:User",
+                        schemaExtensions = new[]
+                        {
+                            new
+                            {
+                                schema = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User",
+                                required = true
+                            }
+                        },
                         meta = new
                         {
                             location = "https://example.com/v2/ResourceTypes/User",
                             resourceType = "ResourceType"
                         }
-                    },
-                    new
+                    });
+                case "group":
+                    return Ok(new
                     {
                         schemas = new[] { "urn:ietf:params:scim:schemas:core:2.0:ResourceType" },
                         id = "Group",
@@ -56,11 +109,10 @@ namespace ScimServiceProvider.Controllers
                             location = "https://example.com/v2/ResourceTypes/Group",
                             resourceType = "ResourceType"
                         }
-                    }
-                }
-            };
-
-            return Ok(resourceTypes);
+                    });
+                default:
+                    return NotFound(new { error = "ResourceType not found" });
+            }
         }
     }
 }

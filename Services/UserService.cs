@@ -17,14 +17,20 @@ namespace ScimServiceProvider.Services
 
         public async Task<ScimUser?> GetUserAsync(string id, string customerId)
         {
-            return await _context.Users
+            var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.Id == id && u.CustomerId == customerId);
+            if (user != null)
+                CleanupEmptyCollections(user);
+            return user;
         }
 
         public async Task<ScimUser?> GetUserByUsernameAsync(string username, string customerId)
         {
-            return await _context.Users
+            var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.UserName == username && u.CustomerId == customerId);
+            if (user != null)
+                CleanupEmptyCollections(user);
+            return user;
         }
 
         public async Task<ScimListResponse<ScimUser>> GetUsersAsync(string customerId, int startIndex = 1, int count = 10, string? filter = null)
@@ -44,6 +50,12 @@ namespace ScimServiceProvider.Services
                 .Skip(startIndex - 1)
                 .Take(count)
                 .ToListAsync();
+
+            // Clean up empty collections for all users
+            foreach (var user in users)
+            {
+                CleanupEmptyCollections(user);
+            }
 
             return new ScimListResponse<ScimUser>
             {
@@ -90,6 +102,7 @@ namespace ScimServiceProvider.Services
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
+            CleanupEmptyCollections(user);
             return user;
         }
 
@@ -133,6 +146,7 @@ namespace ScimServiceProvider.Services
             }
 
             await _context.SaveChangesAsync();
+            CleanupEmptyCollections(existingUser);
             return existingUser;
         }
 
@@ -147,6 +161,15 @@ namespace ScimServiceProvider.Services
             if (user.Name == null) user.Name = new Name();
             if (user.EnterpriseUser == null) user.EnterpriseUser = new EnterpriseUser();
             if (user.Meta == null) user.Meta = new ScimMeta();
+        }
+
+        private void CleanupEmptyCollections(ScimUser user)
+        {
+            if (user.Emails?.Count == 0) user.Emails = null;
+            if (user.PhoneNumbers?.Count == 0) user.PhoneNumbers = null;
+            if (user.Addresses?.Count == 0) user.Addresses = null;
+            if (user.Groups?.Count == 0) user.Groups = null;
+            if (user.Roles?.Count == 0) user.Roles = null;
         }
 
         public async Task<ScimUser?> PatchUserAsync(string id, ScimPatchRequest patchRequest, string customerId)
@@ -189,6 +212,7 @@ namespace ScimServiceProvider.Services
             EnsureUserCollectionsInitialized(user);
 
             await _context.SaveChangesAsync();
+            CleanupEmptyCollections(user);
             return user;
         }
 

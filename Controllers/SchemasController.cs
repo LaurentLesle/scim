@@ -4,7 +4,8 @@ using ScimServiceProvider.Formatters;
 namespace ScimServiceProvider.Controllers
 {
     [ApiController]
-    [Route("")]
+    [Route("scim/v2")]
+    [Route("")] // Support both /scim/v2/Schemas and /Schemas
     [ScimResult]
     public class SchemasController : ControllerBase
     {
@@ -18,20 +19,15 @@ namespace ScimServiceProvider.Controllers
         [HttpGet("Schemas")]
         public ActionResult GetSchemas()
         {
-            _logger.LogInformation("📄 Schemas endpoint requested - returning list of all schemas");
+            _logger.LogInformation("📄 Schemas endpoint requested - returning array of schemas");
             
-            var schemas = new
+            var schemas = new[]
             {
-                schemas = new[] { "urn:ietf:params:scim:api:messages:2.0:ListResponse" },
-                totalResults = 2,
-                Resources = new[]
-                {
-                    GetUserSchema(),
-                    GetGroupSchema()
-                }
+                GetUserSchema(),
+                GetGroupSchema()
             };
 
-            _logger.LogInformation("✅ Returning {SchemaCount} schemas in response", schemas.totalResults);
+            _logger.LogInformation("✅ Returning {SchemaCount} schemas in response", schemas.Length);
             return Ok(schemas);
         }
 
@@ -667,7 +663,7 @@ namespace ScimServiceProvider.Controllers
                 meta = new
                 {
                     resourceType = "Schema",
-                    location = "/Schemas/urn:ietf:params:scim:schemas:core:2.0:User"
+                    location = "/v2/Schemas/urn:ietf:params:scim:schemas:core:2.0:User"
                 }
             };
         }
@@ -858,7 +854,7 @@ namespace ScimServiceProvider.Controllers
                 meta = new
                 {
                     resourceType = "Schema",
-                    location = "/Schemas/urn:ietf:params:scim:schemas:core:2.0:Group"
+                    location = "/v2/Schemas/urn:ietf:params:scim:schemas:core:2.0:Group"
                 }
             };
         }

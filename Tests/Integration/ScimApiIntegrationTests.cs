@@ -148,10 +148,9 @@ namespace ScimServiceProvider.Tests.Integration
             response.StatusCode.Should().Be(HttpStatusCode.OK);
             
             var content = await response.Content.ReadAsStringAsync();
-            var resourceTypes = JsonConvert.DeserializeObject<ScimListResponse<dynamic>>(content);
+            var resourceTypes = JsonConvert.DeserializeObject<dynamic[]>(content);
 
-            resourceTypes!.TotalResults.Should().Be(2);
-            resourceTypes.Resources.Should().HaveCount(2);
+            resourceTypes!.Should().HaveCount(2);
         }
 
         [Fact]
@@ -164,10 +163,24 @@ namespace ScimServiceProvider.Tests.Integration
             response.StatusCode.Should().Be(HttpStatusCode.OK);
             
             var content = await response.Content.ReadAsStringAsync();
-            var schemas = JsonConvert.DeserializeObject<ScimListResponse<dynamic>>(content);
+            var schemas = JsonConvert.DeserializeObject<dynamic[]>(content);
 
-            schemas!.TotalResults.Should().Be(2);
-            schemas.Resources.Should().HaveCount(2);
+            schemas!.Should().HaveCount(2);
+        }
+
+        [Fact]
+        public async Task ResourceTypes_RootEndpoint_ReturnsUserAndGroupTypes()
+        {
+            // Act
+            var response = await _client.GetAsync("/ResourceTypes");
+
+            // Assert
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            
+            var content = await response.Content.ReadAsStringAsync();
+            var resourceTypes = JsonConvert.DeserializeObject<dynamic[]>(content);
+
+            resourceTypes!.Should().HaveCount(2);
         }
 
         [Fact]

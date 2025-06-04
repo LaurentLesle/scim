@@ -16,8 +16,11 @@ namespace ScimServiceProvider.Services
 
         public async Task<ScimGroup?> GetGroupAsync(string id, string customerId)
         {
-            return await _context.Groups
+            var group = await _context.Groups
                 .FirstOrDefaultAsync(g => g.Id == id && g.CustomerId == customerId);
+            if (group != null)
+                CleanupEmptyCollections(group);
+            return group;
         }
 
         public async Task<ScimListResponse<ScimGroup>> GetGroupsAsync(string customerId, int startIndex = 1, int count = 10, string? filter = null)
@@ -37,6 +40,12 @@ namespace ScimServiceProvider.Services
                 .Skip(startIndex - 1)
                 .Take(count)
                 .ToListAsync();
+
+            // Clean up empty collections for all groups
+            foreach (var group in groups)
+            {
+                CleanupEmptyCollections(group);
+            }
 
             return new ScimListResponse<ScimGroup>
             {
@@ -73,6 +82,7 @@ namespace ScimServiceProvider.Services
             _context.Groups.Add(group);
             await _context.SaveChangesAsync();
 
+            CleanupEmptyCollections(group);
             return group;
         }
 
@@ -90,6 +100,7 @@ namespace ScimServiceProvider.Services
             existingGroup.Meta.LastModified = existingGroup.LastModified;
 
             await _context.SaveChangesAsync();
+            CleanupEmptyCollections(existingGroup);
             return existingGroup;
         }
 
@@ -112,6 +123,7 @@ namespace ScimServiceProvider.Services
             group.Schemas = new List<string> { "urn:ietf:params:scim:schemas:core:2.0:Group" };
 
             await _context.SaveChangesAsync();
+            CleanupEmptyCollections(group);
             return group;
         }
 
@@ -254,6 +266,11 @@ namespace ScimServiceProvider.Services
                     }
                     break;
             }
+        }
+
+        private void CleanupEmptyCollections(ScimGroup group)
+        {
+            if (group.Members?.Count == 0) group.Members = null;
         }
     }
 }

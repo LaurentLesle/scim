@@ -12,6 +12,7 @@ namespace ScimServiceProvider.Models
         public List<string> Schemas { get; set; } = new() { "urn:ietf:params:scim:schemas:core:2.0:Group" };
         
         [System.Text.Json.Serialization.JsonPropertyName("externalId")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public string? ExternalId { get; set; }
         
         [System.Text.Json.Serialization.JsonPropertyName("displayName")]
@@ -50,6 +51,7 @@ namespace ScimServiceProvider.Models
         public string Value { get; set; } = string.Empty;
         
         [System.Text.Json.Serialization.JsonPropertyName("display")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public string? Display { get; set; }
         
         [System.Text.Json.Serialization.JsonPropertyName("type")]
