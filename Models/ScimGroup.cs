@@ -16,6 +16,7 @@ namespace ScimServiceProvider.Models
         public string? ExternalId { get; set; }
         
         [System.Text.Json.Serialization.JsonPropertyName("displayName")]
+        [Required(ErrorMessage = "DisplayName is required")]
         public string DisplayName { get; set; } = string.Empty;
         
         // Customer relationship - not serialized in SCIM response
@@ -54,7 +55,8 @@ namespace ScimServiceProvider.Models
         [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
         public string? Display { get; set; }
         
-        [System.Text.Json.Serialization.JsonPropertyName("type")]
-        public string Type { get; set; } = "User";
+        [System.Text.Json.Serialization.JsonPropertyName("$ref")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? Ref { get; set; }
     }
 }

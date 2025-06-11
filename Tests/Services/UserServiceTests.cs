@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ScimServiceProvider.Models;
 using ScimServiceProvider.Services;
 using ScimServiceProvider.Tests.Helpers;
+using System.Text.Json;
 using Xunit;
 
 namespace ScimServiceProvider.Tests.Services
@@ -62,8 +63,8 @@ namespace ScimServiceProvider.Tests.Services
                 CustomerId = _testCustomerId,
                 Roles = new List<Role>
                 {
-                    new Role { Value = "admin", Display = "Admin", Type = "system", Primary = true },
-                    new Role { Value = "user", Display = "User", Type = "system", Primary = false }
+                    new Role { Value = "admin", Display = "Admin", Type = "system" },
+                    new Role { Value = "user", Display = "User", Type = "system" }
                 }
             };
             _context.Users.Add(user);
@@ -74,7 +75,7 @@ namespace ScimServiceProvider.Tests.Services
                 Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
                 Operations = new List<ScimPatchOperation>
                 {
-                    new() { Op = "remove", Path = "roles[primary eq \"True\"]" }
+                    new() { Op = "remove", Path = "roles[value eq \"admin\"]" }
                 }
             };
 
@@ -83,8 +84,8 @@ namespace ScimServiceProvider.Tests.Services
 
             // Assert
             result.Should().NotBeNull();
-            result!.Roles.Should().NotContain(r => r.Primary == true);
-            result.Roles.Should().ContainSingle(r => r.Primary == false);
+            result!.Roles.Should().HaveCount(1);
+            result.Roles.Should().ContainSingle(r => r.Display == "User");
         }
 
         [Fact]
@@ -98,7 +99,7 @@ namespace ScimServiceProvider.Tests.Services
                 CustomerId = _testCustomerId,
                 Roles = new List<Role>
                 {
-                    new Role { Value = "admin", Display = "Admin", Type = "system", Primary = true }
+                    new Role { Value = "admin", Display = "Admin", Type = "system" }
                 }
             };
             _context.Users.Add(user);
@@ -109,7 +110,7 @@ namespace ScimServiceProvider.Tests.Services
                 Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
                 Operations = new List<ScimPatchOperation>
                 {
-                    new() { Op = "replace", Path = "roles[primary eq \"True\"].display", Value = "SuperAdmin" }
+                    new() { Op = "replace", Path = "roles[type eq \"system\"].display", Value = "SuperAdmin" }
                 }
             };
 
@@ -118,7 +119,7 @@ namespace ScimServiceProvider.Tests.Services
 
             // Assert
             result.Should().NotBeNull();
-            result!.Roles.Should().ContainSingle(r => r.Primary == true && r.Display == "SuperAdmin");
+            result!.Roles.Should().ContainSingle(r => r.Display == "SuperAdmin");
         }
 
         [Fact]
@@ -140,13 +141,9 @@ namespace ScimServiceProvider.Tests.Services
                 Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
                 Operations = new List<ScimPatchOperation>
                 {
-                    new() { Op = "add", Path = "roles[primary eq \"True\"].display", Value = "Manager" },
-                    new() { Op = "add", Path = "roles[primary eq \"True\"].value", Value = "manager" },
-                    new() { Op = "add", Path = "roles[primary eq \"True\"].type", Value = "system" },
-                    new() { Op = "add", Path = "roles[primary eq \"False\"].display", Value = "Employee" },
-                    new() { Op = "add", Path = "roles[primary eq \"False\"].value", Value = "employee" },
-                    new() { Op = "add", Path = "roles[primary eq \"False\"].type", Value = "system" },
-                    new() { Op = "replace", Path = "roles[primary eq \"True\"].display", Value = "Director" }
+                    new() { Op = "add", Path = "roles", Value = new { display = "Manager", value = "manager", type = "system" } },
+                    new() { Op = "add", Path = "roles", Value = new { display = "Employee", value = "employee", type = "system" } },
+                    new() { Op = "replace", Path = "roles[value eq \"manager\"].display", Value = "Director" }
                 }
             };
 
@@ -155,8 +152,8 @@ namespace ScimServiceProvider.Tests.Services
 
             // Assert
             result.Should().NotBeNull();
-            result!.Roles.Should().ContainSingle(r => r.Primary == true && r.Display == "Director" && r.Value == "manager");
-            result.Roles.Should().ContainSingle(r => r.Primary == false && r.Display == "Employee" && r.Value == "employee");
+            result!.Roles.Should().ContainSingle(r => r.Display == "Director" && r.Value == "manager");
+            result.Roles.Should().ContainSingle(r => r.Display == "Employee" && r.Value == "employee");
         }
         // ...existing code...
 
@@ -520,7 +517,19 @@ namespace ScimServiceProvider.Tests.Services
         {
             // Arrange
             var existingUser = ScimTestDataGenerator.GenerateUser();
+            
+            // Create the manager user that will be referenced
+            var managerUser = new ScimUser
+            {
+                Id = "manager-id-123",
+                UserName = "manager@example.com",
+                CustomerId = _testCustomerId,
+                Active = true,
+                DisplayName = "Manager User"
+            };
+
             _context.Users.Add(existingUser);
+            _context.Users.Add(managerUser);
             await _context.SaveChangesAsync();
 
             var patchRequest = new ScimPatchRequest
@@ -544,6 +553,7 @@ namespace ScimServiceProvider.Tests.Services
             result!.EnterpriseUser.Should().NotBeNull();
             result.EnterpriseUser!.Manager.Should().NotBeNull();
             result.EnterpriseUser!.Manager!.Value.Should().Be("manager-id-123");
+            result.EnterpriseUser!.Manager!.Ref.Should().Be("../Users/manager-id-123");
         }
 
         [Fact]
@@ -582,7 +592,29 @@ namespace ScimServiceProvider.Tests.Services
             // Arrange
             var existingUser = ScimTestDataGenerator.GenerateUser();
             existingUser.EnterpriseUser = new EnterpriseUser { Manager = new Manager { Value = "old-manager-id" } };
+            
+            // Create both the old and new manager users
+            var oldManagerUser = new ScimUser
+            {
+                Id = "old-manager-id",
+                UserName = "oldmanager@example.com",
+                CustomerId = _testCustomerId,
+                Active = true,
+                DisplayName = "Old Manager"
+            };
+            
+            var newManagerUser = new ScimUser
+            {
+                Id = "new-manager-id-456",
+                UserName = "newmanager@example.com",
+                CustomerId = _testCustomerId,
+                Active = true,
+                DisplayName = "New Manager"
+            };
+
             _context.Users.Add(existingUser);
+            _context.Users.Add(oldManagerUser);
+            _context.Users.Add(newManagerUser);
             await _context.SaveChangesAsync();
 
             var patchRequest = new ScimPatchRequest
@@ -613,7 +645,19 @@ namespace ScimServiceProvider.Tests.Services
         {
             // Arrange
             var existingUser = ScimTestDataGenerator.GenerateUser();
+            
+            // Create the manager user that will be referenced
+            var managerUser = new ScimUser
+            {
+                Id = "manager-123",
+                UserName = "johnmanager@example.com",
+                CustomerId = _testCustomerId,
+                Active = true,
+                DisplayName = "John Manager"
+            };
+
             _context.Users.Add(existingUser);
+            _context.Users.Add(managerUser);
             await _context.SaveChangesAsync();
 
             var managerJson = """{"value":"manager-123","$ref":"../Users/manager-123","displayName":"John Manager"}""";
@@ -648,7 +692,19 @@ namespace ScimServiceProvider.Tests.Services
         {
             // Arrange
             var existingUser = ScimTestDataGenerator.GenerateUser();
+            
+            // Create the manager user that will be referenced
+            var managerUser = new ScimUser
+            {
+                Id = "manager-456",
+                UserName = "janemanager@example.com",
+                CustomerId = _testCustomerId,
+                Active = true,
+                DisplayName = "Jane Manager"
+            };
+
             _context.Users.Add(existingUser);
+            _context.Users.Add(managerUser);
             await _context.SaveChangesAsync();
 
             var managerJson = "{\"value\":\"manager-456\",\"$ref\":\"../Users/manager-456\",\"displayName\":\"Jane Manager\"}";
@@ -683,7 +739,19 @@ namespace ScimServiceProvider.Tests.Services
         {
             // Arrange - Test backward compatibility with string manager values
             var existingUser = ScimTestDataGenerator.GenerateUser();
+            
+            // Create the manager user that will be referenced
+            var managerUser = new ScimUser
+            {
+                Id = "legacy-manager-string-id",
+                UserName = "legacymanager@example.com",
+                CustomerId = _testCustomerId,
+                Active = true,
+                DisplayName = "Legacy Manager"
+            };
+
             _context.Users.Add(existingUser);
+            _context.Users.Add(managerUser);
             await _context.SaveChangesAsync();
 
             var patchRequest = new ScimPatchRequest
@@ -756,7 +824,19 @@ namespace ScimServiceProvider.Tests.Services
         {
             // Arrange - Test that Manager objects are properly persisted and retrieved
             var existingUser = ScimTestDataGenerator.GenerateUser();
+            
+            // Create the manager user that will be referenced
+            var managerUser = new ScimUser
+            {
+                Id = "persist-test-123",
+                UserName = "persistmanager@example.com",
+                CustomerId = _testCustomerId,
+                Active = true,
+                DisplayName = "Persist Test Manager"
+            };
+
             _context.Users.Add(existingUser);
+            _context.Users.Add(managerUser);
             await _context.SaveChangesAsync();
 
             var patchRequest = new ScimPatchRequest
@@ -796,105 +876,105 @@ namespace ScimServiceProvider.Tests.Services
         [Fact]
         public async Task PatchUserAsync_ComplexReplaceOperations_HandlesComplianceTestScenario()
         {
-            // Arrange: Create a user with the same structure as the compliance test
+            // Arrange: Create a user with the exact initial structure from the compliance test
             var user = new ScimUser
             {
                 Id = Guid.NewGuid().ToString(),
-                UserName = "emilio.mcglynn@ruecker.com",
+                UserName = "lisette.roob@kunze.ca",
                 CustomerId = _testCustomerId,
                 Active = true,
-                DisplayName = "MZRRAEBPCVUT",
-                Title = "ZNLLAVOBZHER",
-                UserType = "EVKZWRHDSERH",
-                PreferredLanguage = "yo-BJ",
-                Locale = "LVEZOQYQKHGD",
-                Timezone = "America/Belize",
-                NickName = "BJOHVLIFMGYQ",
-                ProfileUrl = "LJNCUKCYKEGD",
+                DisplayName = "MFMDAGDPRJOL",
+                Title = "CZPUQZUVMDYQ",
+                UserType = "BMNQWSNKJZGL",
+                PreferredLanguage = "ur-Arab-IN",
+                Locale = "MYVLKBQEAOMQ",
+                Timezone = "Europe/Berlin",
+                NickName = "JGTFPUPVVDHR",
+                ProfileUrl = "MJUTDYPCGJJL",
                 Name = new Name
                 {
-                    GivenName = "Adah",
-                    FamilyName = "Lonny",
-                    Formatted = "Kariane",
-                    MiddleName = "Kristofer",
-                    HonorificPrefix = "Chandler",
-                    HonorificSuffix = "Wilton"
+                    GivenName = "Barry",
+                    FamilyName = "Hiram",
+                    Formatted = "Edgar",
+                    MiddleName = "Dovie",
+                    HonorificPrefix = "Mayra",
+                    HonorificSuffix = "Trent"
                 },
                 Emails = new List<Email>
                 {
-                    new() { Type = "work", Value = "tiffany@jast.ca", Primary = true }
+                    new() { Type = "work", Value = "donnie@morissettelindgren.us", Primary = true }
                 },
                 PhoneNumbers = new List<PhoneNumber>
                 {
-                    new() { Type = "work", Value = "50-608-7660", Primary = true },
-                    new() { Type = "mobile", Value = "50-608-7660", Primary = false },
-                    new() { Type = "fax", Value = "50-608-7660", Primary = false }
+                    new() { Type = "work", Value = "16-434-2057", Primary = true },
+                    new() { Type = "mobile", Value = "16-434-2057" },
+                    new() { Type = "fax", Value = "16-434-2057" }
                 },
                 Addresses = new List<Address>
                 {
                     new() 
                     { 
                         Type = "work", 
-                        Formatted = "GIAXVJDMAEBW",
-                        StreetAddress = "368 Gay Lock",
-                        Locality = "WJHZXDARRIRX",
-                        Region = "ZNZGNAESMOMP",
-                        PostalCode = "cr66 0dk",
-                        Country = "Palau",
-                        Primary = true 
+                        Formatted = "BNOZCTZQCNJG",
+                        StreetAddress = "151 Alford Park",
+                        Locality = "VAWINPUPHDSW",
+                        Region = "KHRGZUWNUGVJ",
+                        PostalCode = "wf11 1hs",
+                        Country = "Montenegro",
+                        Primary = true
                     }
                 },
                 Roles = new List<Role>
                 {
                     new() 
                     { 
-                        Primary = true, 
-                        Display = "DTFSIZWBZYQD", 
-                        Value = "LXWDSUWSDLDZ", 
-                        Type = "BYDQIEEGJBTJ" 
+                        Display = "QHCGHEXIAFGA", 
+                        Value = "DFTTYHKOLKNO", 
+                        Type = "FZAMDZZCEXCP",
+                        Primary = "true"
                     }
                 },
                 EnterpriseUser = new EnterpriseUser
                 {
-                    EmployeeNumber = "HPMBHRQJMJYJ",
-                    Department = "OAGMRKTDHGOH",
-                    CostCenter = "RQDCCTIAOWXV",
-                    Organization = "ATEFZMKHMCIC",
-                    Division = "IEJBGFEWNPIS"
+                    EmployeeNumber = "GXFMNDYZBBWR",
+                    Department = "AFIDFJTYBIRF",
+                    CostCenter = "IWLXADEMDYGL",
+                    Organization = "HLQOOSZQBTBD",
+                    Division = "GAKPSVRYRXXQ"
                 }
             };
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
 
-            // Act: Apply the same PATCH operations as the compliance test
+            // Act: Apply the exact PATCH operations from the compliance test
             var patchRequest = new ScimPatchRequest
             {
                 Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
                 Operations = new List<ScimPatchOperation>
                 {
                     // Email replacements
-                    new() { Op = "replace", Path = "emails[type eq \"work\"].value", Value = "julian_kunze@raynor.co.uk" },
+                    new() { Op = "replace", Path = "emails[type eq \"work\"].value", Value = "orrin_monahan@kris.co.uk" },
                     new() { Op = "replace", Path = "emails[type eq \"work\"].primary", Value = true },
                     
                     // Address replacements
-                    new() { Op = "replace", Path = "addresses[type eq \"work\"].formatted", Value = "CNVZPWDNWBOS" },
-                    new() { Op = "replace", Path = "addresses[type eq \"work\"].streetAddress", Value = "00795 Kling Trail" },
-                    new() { Op = "replace", Path = "addresses[type eq \"work\"].locality", Value = "LSIGXHVGXAFU" },
-                    new() { Op = "replace", Path = "addresses[type eq \"work\"].region", Value = "PNGAPVNYDPBE" },
-                    new() { Op = "replace", Path = "addresses[type eq \"work\"].postalCode", Value = "bi98 9ei" },
+                    new() { Op = "replace", Path = "addresses[type eq \"work\"].formatted", Value = "UTECTUBZJPJD" },
+                    new() { Op = "replace", Path = "addresses[type eq \"work\"].streetAddress", Value = "444 Chadrick Run" },
+                    new() { Op = "replace", Path = "addresses[type eq \"work\"].locality", Value = "GRMXEAACKAYM" },
+                    new() { Op = "replace", Path = "addresses[type eq \"work\"].region", Value = "NRIDEZXCJMXP" },
+                    new() { Op = "replace", Path = "addresses[type eq \"work\"].postalCode", Value = "rp00 0yz" },
                     new() { Op = "replace", Path = "addresses[type eq \"work\"].primary", Value = true },
-                    new() { Op = "replace", Path = "addresses[type eq \"work\"].country", Value = "Saint Martin" },
+                    new() { Op = "replace", Path = "addresses[type eq \"work\"].country", Value = "Brunei Darussalam" },
                     
                     // Phone number replacements
-                    new() { Op = "replace", Path = "phoneNumbers[type eq \"work\"].value", Value = "62-106-7825" },
+                    new() { Op = "replace", Path = "phoneNumbers[type eq \"work\"].value", Value = "59-714-5563" },
                     new() { Op = "replace", Path = "phoneNumbers[type eq \"work\"].primary", Value = true },
-                    new() { Op = "replace", Path = "phoneNumbers[type eq \"mobile\"].value", Value = "62-106-7825" },
-                    new() { Op = "replace", Path = "phoneNumbers[type eq \"fax\"].value", Value = "62-106-7825" },
+                    new() { Op = "replace", Path = "phoneNumbers[type eq \"mobile\"].value", Value = "59-714-5563" },
+                    new() { Op = "replace", Path = "phoneNumbers[type eq \"fax\"].value", Value = "59-714-5563" },
                     
                     // Role replacements
-                    new() { Op = "replace", Path = "roles[primary eq \"True\"].display", Value = "WJFYANRRKBZY" },
-                    new() { Op = "replace", Path = "roles[primary eq \"True\"].value", Value = "YJUMXBISKVVV" },
-                    new() { Op = "replace", Path = "roles[primary eq \"True\"].type", Value = "PMZUZHVPFIAO" },
+                    new() { Op = "replace", Path = "roles[primary eq \"True\"].display", Value = "TFXYUPBHCSBK" },
+                    new() { Op = "replace", Path = "roles[primary eq \"True\"].value", Value = "SYWZUYJOXVKT" },
+                    new() { Op = "replace", Path = "roles[primary eq \"True\"].type", Value = "ATLDQUBQZABY" },
                     
                     // Pathless replace operation (bulk update)
                     new() 
@@ -903,25 +983,25 @@ namespace ScimServiceProvider.Tests.Services
                         Value = new Dictionary<string, object>
                         {
                             { "active", true },
-                            { "displayName", "QUXLDPMOGMTE" },
-                            { "title", "ZFRODQRUFTOL" },
-                            { "preferredLanguage", "mt-MT" },
-                            { "name.givenName", "Jacky" },
-                            { "name.familyName", "Donald" },
-                            { "name.formatted", "Makenna" },
-                            { "name.middleName", "Jordi" },
-                            { "name.honorificPrefix", "Liana" },
-                            { "name.honorificSuffix", "Eula" },
-                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:employeeNumber", "BBSDCWZRXGSP" },
-                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:department", "AMFPTCVNGPLF" },
-                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:costCenter", "SMVTLHIMHKSU" },
-                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:organization", "ABWODHFESUZD" },
-                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:division", "LUKZBCYTVEXL" },
-                            { "userType", "VFWXPTGVJHVY" },
-                            { "nickName", "UTIRDCIZNEQY" },
-                            { "locale", "OHDKIGRLUPCO" },
-                            { "timezone", "Africa/Ndjamena" },
-                            { "profileUrl", "DHQBHWYDUDUU" }
+                            { "displayName", "RAZHWSOBRCUA" },
+                            { "title", "CXFAJRVENDZM" },
+                            { "preferredLanguage", "en-CC" },
+                            { "name.givenName", "Enola" },
+                            { "name.familyName", "Andy" },
+                            { "name.formatted", "Katelyn" },
+                            { "name.middleName", "Ana" },
+                            { "name.honorificPrefix", "Khalid" },
+                            { "name.honorificSuffix", "Cale" },
+                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:employeeNumber", "BFPGALJQQIRC" },
+                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:department", "GOVBRIUNSUJJ" },
+                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:costCenter", "HFPOUBWXZNGW" },
+                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:organization", "KLVRJYURUBWZ" },
+                            { "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:division", "BONBFXVGKSIA" },
+                            { "userType", "SVBMLRRZLUPS" },
+                            { "nickName", "RBLQDPBRTNLU" },
+                            { "locale", "LUBTPVKNGIDM" },
+                            { "timezone", "Africa/Maputo" },
+                            { "profileUrl", "GYLOKHJZNGVT" }
                         }
                     }
                 }
@@ -929,76 +1009,490 @@ namespace ScimServiceProvider.Tests.Services
 
             var result = await _userService.PatchUserAsync(user.Id!, patchRequest, _testCustomerId);
 
-            // Assert: Verify all the expected changes from the compliance test
+            // Assert: Verify all the expected changes match the compliance test exactly
             result.Should().NotBeNull();
             
             // Verify email changes
             result!.Emails.Should().ContainSingle();
-            result.Emails![0].Value.Should().Be("julian_kunze@raynor.co.uk");
+            result.Emails![0].Value.Should().Be("orrin_monahan@kris.co.uk");
             result.Emails[0].Type.Should().Be("work");
-            result.Emails[0].Primary.Should().BeTrue();
+            result.Emails[0].Primary.Should().Be(true);
             
             // Verify address changes
             result.Addresses.Should().ContainSingle();
             var address = result.Addresses![0];
-            address.Formatted.Should().Be("CNVZPWDNWBOS");
-            address.StreetAddress.Should().Be("00795 Kling Trail");
-            address.Locality.Should().Be("LSIGXHVGXAFU");
-            address.Region.Should().Be("PNGAPVNYDPBE");
-            address.PostalCode.Should().Be("bi98 9ei");
-            address.Country.Should().Be("Saint Martin");
+            address.Formatted.Should().Be("UTECTUBZJPJD");
+            address.StreetAddress.Should().Be("444 Chadrick Run");
+            address.Locality.Should().Be("GRMXEAACKAYM");
+            address.Region.Should().Be("NRIDEZXCJMXP");
+            address.PostalCode.Should().Be("rp00 0yz");
+            address.Country.Should().Be("Brunei Darussalam");
             address.Type.Should().Be("work");
-            address.Primary.Should().BeTrue();
+            address.Primary.Should().Be(true);
             
             // Verify phone number changes
             result.PhoneNumbers.Should().HaveCount(3);
             var workPhone = result.PhoneNumbers!.First(p => p.Type == "work");
-            workPhone.Value.Should().Be("62-106-7825");
-            workPhone.Primary.Should().BeTrue();
+            workPhone.Value.Should().Be("59-714-5563");
+            workPhone.Primary.Should().Be(true);
             
             var mobilePhone = result.PhoneNumbers!.First(p => p.Type == "mobile");
-            mobilePhone.Value.Should().Be("62-106-7825");
-            mobilePhone.Primary.Should().BeFalse();
+            mobilePhone.Value.Should().Be("59-714-5563");
             
             var faxPhone = result.PhoneNumbers!.First(p => p.Type == "fax");
-            faxPhone.Value.Should().Be("62-106-7825");
-            faxPhone.Primary.Should().BeFalse();
+            faxPhone.Value.Should().Be("59-714-5563");
             
             // Verify role changes
             result.Roles.Should().ContainSingle();
             var role = result.Roles![0];
-            role.Display.Should().Be("WJFYANRRKBZY");
-            role.Value.Should().Be("YJUMXBISKVVV");
-            role.Type.Should().Be("PMZUZHVPFIAO");
-            role.Primary.Should().Be(true);
+            role.Display.Should().Be("TFXYUPBHCSBK");
+            role.Value.Should().Be("SYWZUYJOXVKT");
+            role.Type.Should().Be("ATLDQUBQZABY");
+            role.Primary.Should().Be("true");
             
-            // Verify bulk update changes
-            result.Active.Should().BeTrue();
-            result.DisplayName.Should().Be("QUXLDPMOGMTE");
-            result.Title.Should().Be("ZFRODQRUFTOL");
-            result.PreferredLanguage.Should().Be("mt-MT");
-            result.UserType.Should().Be("VFWXPTGVJHVY");
-            result.NickName.Should().Be("UTIRDCIZNEQY");
-            result.Locale.Should().Be("OHDKIGRLUPCO");
-            result.Timezone.Should().Be("Africa/Ndjamena");
-            result.ProfileUrl.Should().Be("DHQBHWYDUDUU");
-            
-            // Verify name changes
+            // Verify name changes from pathless operation
             result.Name.Should().NotBeNull();
-            result.Name!.GivenName.Should().Be("Jacky");
-            result.Name.FamilyName.Should().Be("Donald");
-            result.Name.Formatted.Should().Be("Makenna");
-            result.Name.MiddleName.Should().Be("Jordi");
-            result.Name.HonorificPrefix.Should().Be("Liana");
-            result.Name.HonorificSuffix.Should().Be("Eula");
+            result.Name!.GivenName.Should().Be("Enola");
+            result.Name.FamilyName.Should().Be("Andy");
+            result.Name.Formatted.Should().Be("Katelyn");
+            result.Name.MiddleName.Should().Be("Ana");
+            result.Name.HonorificPrefix.Should().Be("Khalid");
+            result.Name.HonorificSuffix.Should().Be("Cale");
             
-            // Verify enterprise user changes
+            // Verify enterprise extension changes from pathless operation
             result.EnterpriseUser.Should().NotBeNull();
-            result.EnterpriseUser!.EmployeeNumber.Should().Be("BBSDCWZRXGSP");
-            result.EnterpriseUser.Department.Should().Be("AMFPTCVNGPLF");
-            result.EnterpriseUser.CostCenter.Should().Be("SMVTLHIMHKSU");
-            result.EnterpriseUser.Organization.Should().Be("ABWODHFESUZD");
-            result.EnterpriseUser.Division.Should().Be("LUKZBCYTVEXL");
+            result.EnterpriseUser!.EmployeeNumber.Should().Be("BFPGALJQQIRC");
+            result.EnterpriseUser.Department.Should().Be("GOVBRIUNSUJJ");
+            result.EnterpriseUser.CostCenter.Should().Be("HFPOUBWXZNGW");
+            result.EnterpriseUser.Organization.Should().Be("KLVRJYURUBWZ");
+            result.EnterpriseUser.Division.Should().Be("BONBFXVGKSIA");
+            
+            // Verify other bulk update changes
+            result.DisplayName.Should().Be("RAZHWSOBRCUA");
+            result.Title.Should().Be("CXFAJRVENDZM");
+            result.PreferredLanguage.Should().Be("en-CC");
+            result.UserType.Should().Be("SVBMLRRZLUPS");
+            result.NickName.Should().Be("RBLQDPBRTNLU");
+            result.Locale.Should().Be("LUBTPVKNGIDM");
+            result.Timezone.Should().Be("Africa/Maputo");
+            result.ProfileUrl.Should().Be("GYLOKHJZNGVT");
+            result.Active.Should().Be(true);
+            
+            // Verify schema compliance
+            result.Schemas.Should().Contain("urn:ietf:params:scim:schemas:core:2.0:User");
+            result.Schemas.Should().Contain("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
+        }
+
+        [Fact]
+        public async Task PatchUserAsync_ComplianceTest_AddManagerOperation_MatchesExactScenario()
+        {
+            // Arrange - Test that matches the exact compliance test scenario
+            
+            // Create the manager user first
+            var managerUser = ScimTestDataGenerator.GenerateUser();
+            managerUser.Id = "eafec183-4fa9-4741-b2c9-6dc1f0ff75b1";
+            managerUser.UserName = "manager@company.com";
+            managerUser.DisplayName = "Manager User";
+            managerUser.CustomerId = _testCustomerId;
+            managerUser.Meta = new ScimMeta
+            {
+                ResourceType = "User",
+                Created = DateTime.UtcNow,
+                LastModified = DateTime.UtcNow,
+                Version = "1"
+            };
+            _context.Users.Add(managerUser);
+            
+            var existingUser = ScimTestDataGenerator.GenerateUser();
+            existingUser.UserName = "ardella.hansen@goyette.info";
+            existingUser.DisplayName = "ALRXNTMVWMZD";
+            existingUser.EnterpriseUser = new EnterpriseUser 
+            {
+                EmployeeNumber = "LBHGOGYNEPMM",
+                Department = "JVQSOANJGYQK",
+                CostCenter = "ZFEBUESBVHYO",
+                Organization = "RXJYMYJUINHW",
+                Division = "GIVMPWBGBWIS"
+            };
+            _context.Users.Add(existingUser);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() {
+                        Op = "add",
+                        Path = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager",
+                        Value = "eafec183-4fa9-4741-b2c9-6dc1f0ff75b1"
+                    }
+                }
+            };
+
+            // Act
+            var result = await _userService.PatchUserAsync(existingUser.Id!, patchRequest, _testCustomerId);
+
+            // Assert - Verify SCIM 2.0 compliance for manager addition
+            result.Should().NotBeNull();
+            result!.UserName.Should().Be("ardella.hansen@goyette.info");
+            result.EnterpriseUser.Should().NotBeNull();
+            result.EnterpriseUser!.Manager.Should().NotBeNull();
+            result.EnterpriseUser!.Manager!.Value.Should().Be("eafec183-4fa9-4741-b2c9-6dc1f0ff75b1");
+            result.EnterpriseUser!.Manager!.Ref.Should().Be("../Users/eafec183-4fa9-4741-b2c9-6dc1f0ff75b1");
+            
+            // Verify other enterprise fields are preserved
+            result.EnterpriseUser!.EmployeeNumber.Should().Be("LBHGOGYNEPMM");
+            result.EnterpriseUser!.Department.Should().Be("JVQSOANJGYQK");
+            result.EnterpriseUser!.CostCenter.Should().Be("ZFEBUESBVHYO");
+            result.EnterpriseUser!.Organization.Should().Be("RXJYMYJUINHW");
+            result.EnterpriseUser!.Division.Should().Be("GIVMPWBGBWIS");
+            
+            // Verify schemas include enterprise extension
+            result.Schemas.Should().Contain("urn:ietf:params:scim:schemas:core:2.0:User");
+            result.Schemas.Should().Contain("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
+        }
+
+        [Fact]
+        public async Task PatchUserAsync_ReplaceAttributesVerboseRequest_ComplianceScenario()
+        {
+            // Arrange - Load test data from JSON files
+            var initialUserJson = await File.ReadAllTextAsync("Tests/Resources/patch-replace-verbose-initial-user.json");
+            var patchOpsJson = await File.ReadAllTextAsync("Tests/Resources/patch-replace-verbose-operations.json");
+            var expectedResultJson = await File.ReadAllTextAsync("Tests/Resources/patch-replace-verbose-expected-result.json");
+
+            var initialUserData = JsonSerializer.Deserialize<ScimUser>(initialUserJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+            var patchRequest = JsonSerializer.Deserialize<ScimPatchRequest>(patchOpsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+            var expectedResult = JsonSerializer.Deserialize<ScimUser>(expectedResultJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+            // Set required fields for test
+            initialUserData.Id = Guid.NewGuid().ToString();
+            initialUserData.CustomerId = _testCustomerId;
+            initialUserData.Meta = new ScimMeta
+            {
+                ResourceType = "User",
+                Created = DateTime.UtcNow,
+                LastModified = DateTime.UtcNow,
+                Version = "1"
+            };
+
+            // Create initial user
+            _context.Users.Add(initialUserData);
+            await _context.SaveChangesAsync();
+
+            // Act - Apply PATCH operations
+            var result = await _userService.PatchUserAsync(initialUserData.Id!, patchRequest, _testCustomerId);
+
+            // Assert - Verify all specific field replacements from compliance scenario
+            result.Should().NotBeNull();
+
+            // Core attributes
+            result!.Active.Should().Be(true);
+            result.DisplayName.Should().Be("DIRKTXOAYZZM");
+            result.Title.Should().Be("UNBYYSYMKXGZ");
+            result.PreferredLanguage.Should().Be("dv");
+            result.UserType.Should().Be("FXVZTALTOKRQ");
+            result.NickName.Should().Be("GFOKYVCXKLBE");
+            result.Locale.Should().Be("PQPJBPUPAZYH");
+            result.Timezone.Should().Be("Africa/Addis_Ababa");
+            result.ProfileUrl.Should().Be("ILOBIMRVDJVN");
+
+            // Name fields - verify all name attributes are correctly replaced
+            result.Name.Should().NotBeNull();
+            result.Name!.GivenName.Should().Be("Rahsaan", "because name.givenName should be replaced");
+            result.Name.FamilyName.Should().Be("Warren", "because name.familyName should be replaced");
+            result.Name.Formatted.Should().Be("Gage", "because name.formatted should be replaced");
+            result.Name.MiddleName.Should().Be("Chester", "because name.middleName should be replaced");
+            result.Name.HonorificPrefix.Should().Be("Miracle", "because name.honorificPrefix should be replaced");
+            result.Name.HonorificSuffix.Should().Be("Mya", "because name.honorificSuffix should be replaced");
+
+            // Email with filtered path replacement
+            result.Emails.Should().NotBeNull().And.HaveCount(1);
+            var workEmail = result.Emails!.FirstOrDefault(e => e.Type == "work");
+            workEmail.Should().NotBeNull();
+            workEmail!.Value.Should().Be("kiley@harveyjacobi.us", "because emails[type eq \"work\"].value should be replaced");
+            workEmail.Primary.Should().Be(true);
+
+            // Address with multiple filtered path replacements
+            result.Addresses.Should().NotBeNull().And.HaveCount(1);
+            var workAddress = result.Addresses!.FirstOrDefault(a => a.Type == "work");
+            workAddress.Should().NotBeNull();
+            workAddress!.Formatted.Should().Be("HROZMXTEBJYJ", "because addresses[type eq \"work\"].formatted should be replaced");
+            workAddress.StreetAddress.Should().Be("68276 Orpha Village", "because addresses[type eq \"work\"].streetAddress should be replaced");
+            workAddress.Locality.Should().Be("FQVYYVPHTSKW", "because addresses[type eq \"work\"].locality should be replaced");
+            workAddress.Region.Should().Be("KNIDQTRIHHFW", "because addresses[type eq \"work\"].region should be replaced");
+            workAddress.PostalCode.Should().Be("gh62 1ob", "because addresses[type eq \"work\"].postalCode should be replaced");
+            workAddress.Country.Should().Be("Colombia", "because addresses[type eq \"work\"].country should be replaced");
+            workAddress.Primary.Should().Be(true);
+
+            // Phone numbers with filtered path replacements
+            result.PhoneNumbers.Should().NotBeNull().And.HaveCount(3);
+            var workPhone = result.PhoneNumbers!.FirstOrDefault(p => p.Type == "work");
+            var mobilePhone = result.PhoneNumbers!.FirstOrDefault(p => p.Type == "mobile");
+            var faxPhone = result.PhoneNumbers!.FirstOrDefault(p => p.Type == "fax");
+
+            workPhone.Should().NotBeNull();
+            workPhone!.Value.Should().Be("15-338-2012", "because phoneNumbers[type eq \"work\"].value should be replaced");
+            workPhone.Primary.Should().Be(true);
+
+            mobilePhone.Should().NotBeNull();
+            mobilePhone!.Value.Should().Be("15-338-2012", "because phoneNumbers[type eq \"mobile\"].value should be replaced");
+
+            faxPhone.Should().NotBeNull();
+            faxPhone!.Value.Should().Be("15-338-2012", "because phoneNumbers[type eq \"fax\"].value should be replaced");
+
+            // Enterprise extension fields with URN paths
+            result.EnterpriseUser.Should().NotBeNull();
+            result.EnterpriseUser!.EmployeeNumber.Should().Be("AJKHTFRTUEOL", "because enterprise employeeNumber should be replaced");
+            result.EnterpriseUser.Department.Should().Be("HEPFZZRYERLO", "because enterprise department should be replaced");
+            result.EnterpriseUser.CostCenter.Should().Be("USAQIHFGZAON", "because enterprise costCenter should be replaced");
+            result.EnterpriseUser.Organization.Should().Be("WVWXWZZPTZXO", "because enterprise organization should be replaced");
+            result.EnterpriseUser.Division.Should().Be("ETIPYPNCXQMY", "because enterprise division should be replaced");
+
+            // Roles with filtered path replacement
+            result.Roles.Should().NotBeNull().And.HaveCount(1);
+            var primaryRole = result.Roles!.FirstOrDefault(r => r.Primary == "True");
+            primaryRole.Should().NotBeNull();
+            primaryRole!.Display.Should().Be("NONTGTTVNUAY", "because roles[primary eq \"True\"].display should be replaced");
+            primaryRole.Value.Should().Be("XKNOACDIOLQS", "because roles[primary eq \"True\"].value should be replaced");
+            primaryRole.Type.Should().Be("LBTRJUINCINV", "because roles[primary eq \"True\"].type should be replaced");
+
+            // Verify schemas are preserved
+            result.Schemas.Should().Contain("urn:ietf:params:scim:schemas:core:2.0:User");
+            result.Schemas.Should().Contain("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
+
+            // Verify meta data is updated
+            result.Meta.Should().NotBeNull();
+            result.Meta!.LastModified.Should().BeAfter(initialUserData.Meta!.Created);
+        }
+
+        [Fact]
+        public async Task PatchUserAsync_AddManager_ComplianceScenario()
+        {
+            // Arrange - Load test data from JSON files
+            var managerUserJson = await File.ReadAllTextAsync("Tests/Resources/patch-add-manager-manager-user.json");
+            var initialUserJson = await File.ReadAllTextAsync("Tests/Resources/patch-add-manager-initial-user.json");
+            var patchOpsJson = await File.ReadAllTextAsync("Tests/Resources/patch-add-manager-operations.json");
+            var expectedResultJson = await File.ReadAllTextAsync("Tests/Resources/patch-add-manager-expected-result.json");
+
+            var managerUserData = JsonSerializer.Deserialize<ScimUser>(managerUserJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+            var initialUserData = JsonSerializer.Deserialize<ScimUser>(initialUserJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+            var patchRequest = JsonSerializer.Deserialize<ScimPatchRequest>(patchOpsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+            var expectedResult = JsonSerializer.Deserialize<ScimUser>(expectedResultJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+            // Create the manager user first - this is the user that will be referenced
+            var managerId = "96720958-e666-4969-b1ab-653aa4873ba7";
+            managerUserData.Id = managerId;
+            managerUserData.CustomerId = _testCustomerId;
+            managerUserData.Meta = new ScimMeta
+            {
+                ResourceType = "User",
+                Created = DateTime.UtcNow,
+                LastModified = DateTime.UtcNow,
+                Version = "1"
+            };
+
+            // Create the employee user (initially without manager)
+            initialUserData.Id = Guid.NewGuid().ToString();
+            initialUserData.CustomerId = _testCustomerId;
+            initialUserData.Meta = new ScimMeta
+            {
+                ResourceType = "User",
+                Created = DateTime.UtcNow,
+                LastModified = DateTime.UtcNow,
+                Version = "1"
+            };
+
+            // Add both users to context
+            _context.Users.Add(managerUserData);
+            _context.Users.Add(initialUserData);
+            await _context.SaveChangesAsync();
+
+            // Act - Apply PATCH operation to add manager
+            var result = await _userService.PatchUserAsync(initialUserData.Id!, patchRequest, _testCustomerId);
+
+            // Assert - Verify manager was added with correct structure
+            result.Should().NotBeNull();
+            result!.EnterpriseUser.Should().NotBeNull();
+            result.EnterpriseUser!.Manager.Should().NotBeNull();
+
+            // Verify manager object structure matches SCIM compliance requirements
+            var manager = result.EnterpriseUser.Manager!;
+            manager.Value.Should().Be(managerId, "because manager.value should contain the manager's user ID");
+            manager.Ref.Should().Be($"../Users/{managerId}", "because manager.$ref should contain the proper URI reference");
+
+            // Verify the referenced manager user actually exists and can be retrieved
+            var referencedManager = await _userService.GetUserAsync(managerId, _testCustomerId);
+            referencedManager.Should().NotBeNull("because the referenced manager user should exist in the system");
+            
+            // Verify the referenced manager has the expected properties
+            referencedManager!.Id.Should().Be(managerId);
+            referencedManager.UserName.Should().Be("john.manager@company.com");
+            referencedManager.DisplayName.Should().Be("Manager User");
+            referencedManager.Title.Should().Be("Senior Manager");
+            referencedManager.Name.Should().NotBeNull();
+            referencedManager.Name!.GivenName.Should().Be("John");
+            referencedManager.Name.FamilyName.Should().Be("Manager");
+            
+            // Verify enterprise attributes of the manager
+            referencedManager.EnterpriseUser.Should().NotBeNull();
+            referencedManager.EnterpriseUser!.EmployeeNumber.Should().Be("MGR001");
+            referencedManager.EnterpriseUser.Department.Should().Be("Management");
+            referencedManager.EnterpriseUser.Organization.Should().Be("OBNBAWJBNWZI");
+
+            // Verify that the employee user has all other original attributes preserved
+            result.UserName.Should().Be("kyla@wisozkpollich.name");
+            result.DisplayName.Should().Be("AROZNLTJCGIX");
+            result.Active.Should().Be(true);
+            
+            // Verify schemas include enterprise extension
+            result.Schemas.Should().Contain("urn:ietf:params:scim:schemas:core:2.0:User");
+            result.Schemas.Should().Contain("urn:ietf:params:scim:schemas:extension:enterprise:2.0:User");
+
+            // Verify other enterprise attributes are preserved
+            result.EnterpriseUser.EmployeeNumber.Should().Be("ILBQFTAJKGGC");
+            result.EnterpriseUser.Department.Should().Be("OOHNREPLZNPL");
+            result.EnterpriseUser.CostCenter.Should().Be("LBTMPKFDEKMV");
+            result.EnterpriseUser.Organization.Should().Be("OBNBAWJBNWZI");
+            result.EnterpriseUser.Division.Should().Be("NRSNSZCWMRPW");
+
+            // Verify meta data is updated
+            result.Meta.Should().NotBeNull();
+            result.Meta!.LastModified.Should().BeAfter(initialUserData.Meta!.Created);
+        }
+
+        [Fact]
+        public async Task PatchUserAsync_AddInvalidManager_ThrowsException()
+        {
+            // Arrange - Load test data for invalid manager scenario (malformed manager data)
+            var initialUserJson = await File.ReadAllTextAsync("Tests/Resources/patch-add-manager-initial-user.json");
+            var patchOpsJson = await File.ReadAllTextAsync("Tests/Resources/patch-add-invalid-manager-operations.json");
+
+            var initialUserData = JsonSerializer.Deserialize<ScimUser>(initialUserJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+            var patchRequest = JsonSerializer.Deserialize<ScimPatchRequest>(patchOpsJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
+
+            // Create the employee user (initially without manager)
+            initialUserData.Id = Guid.NewGuid().ToString();
+            initialUserData.CustomerId = _testCustomerId;
+            initialUserData.Meta = new ScimMeta
+            {
+                ResourceType = "User",
+                Created = DateTime.UtcNow,
+                LastModified = DateTime.UtcNow,
+                Version = "1"
+            };
+
+            // Add only the employee user to context
+            _context.Users.Add(initialUserData);
+            await _context.SaveChangesAsync();
+
+            // Act & Assert - Applying PATCH operation with malformed manager data should throw exception
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => _userService.PatchUserAsync(initialUserData.Id!, patchRequest, _testCustomerId)
+            );
+
+            exception.Message.Should().ContainAny("manager", "Manager", "deserialize", "Failed");
+        }
+
+        [Fact]
+        public async Task PatchUserAsync_AddManager_EnsuresManagerValueIsPresent()
+        {
+            // Arrange - Create a user without manager
+            var user = new ScimUser
+            {
+                Id = Guid.NewGuid().ToString(),
+                UserName = "employee@company.com",
+                DisplayName = "Employee User",
+                Active = true,
+                CustomerId = _testCustomerId,
+                Schemas = new List<string>
+                {
+                    "urn:ietf:params:scim:schemas:core:2.0:User",
+                    "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+                },
+                EnterpriseUser = new EnterpriseUser
+                {
+                    EmployeeNumber = "EMP001",
+                    Department = "Engineering"
+                },
+                Meta = new ScimMeta
+                {
+                    ResourceType = "User",
+                    Created = DateTime.UtcNow,
+                    LastModified = DateTime.UtcNow,
+                    Version = "1"
+                }
+            };
+
+            // Create a manager user that will be referenced
+            var managerUser = new ScimUser
+            {
+                Id = "manager-123-456-789",
+                UserName = "manager@company.com", 
+                DisplayName = "Manager User",
+                Active = true,
+                CustomerId = _testCustomerId,
+                Schemas = new List<string>
+                {
+                    "urn:ietf:params:scim:schemas:core:2.0:User",
+                    "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+                },
+                EnterpriseUser = new EnterpriseUser
+                {
+                    EmployeeNumber = "MGR001",
+                    Department = "Management"
+                },
+                Meta = new ScimMeta
+                {
+                    ResourceType = "User",
+                    Created = DateTime.UtcNow,
+                    LastModified = DateTime.UtcNow,
+                    Version = "1"
+                }
+            };
+
+            // Add both users to context
+            _context.Users.Add(user);
+            _context.Users.Add(managerUser);
+            await _context.SaveChangesAsync();
+
+            // Create PATCH request to add manager
+            var patchRequest = new ScimPatchRequest
+            {
+                Operations = new List<ScimPatchOperation>
+                {
+                    new ScimPatchOperation
+                    {
+                        Op = "add",
+                        Path = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager",
+                        Value = "manager-123-456-789"
+                    }
+                }
+            };
+
+            // Act - Apply PATCH operation
+            var result = await _userService.PatchUserAsync(user.Id!, patchRequest, _testCustomerId);
+
+            // Assert - Verify manager is added with correct structure
+            result.Should().NotBeNull();
+            result!.EnterpriseUser.Should().NotBeNull();
+            result.EnterpriseUser!.Manager.Should().NotBeNull("because manager should be added");
+
+            var manager = result.EnterpriseUser.Manager!;
+            
+            // Critical assertion: manager.value must be present and not null/empty
+            manager.Value.Should().NotBeNullOrEmpty("because manager.value is required for SCIM compliance");
+            manager.Value.Should().Be("manager-123-456-789", "because manager.value should contain the manager's user ID");
+            
+            // Verify $ref is also present
+            manager.Ref.Should().NotBeNullOrEmpty("because manager.$ref is required for SCIM compliance");
+            manager.Ref.Should().Be("../Users/manager-123-456-789", "because manager.$ref should contain the proper URI reference");
+            
+            // Verify the referenced manager actually exists
+            var referencedManager = await _userService.GetUserAsync("manager-123-456-789", _testCustomerId);
+            referencedManager.Should().NotBeNull("because the referenced manager user should exist in the system");
+            referencedManager!.Id.Should().Be("manager-123-456-789");
+            referencedManager.UserName.Should().Be("manager@company.com");
         }
 
         // ...existing code...

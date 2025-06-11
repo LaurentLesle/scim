@@ -1,0 +1,12 @@
+{
+  "Operations": [
+    {
+      "op": "add",
+      "path": "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager",
+      "value": "eafec183-4fa9-4741-b2c9-6dc1f0ff75b1"
+    }
+  ],
+  "schemas": [
+    "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+  ]
+}

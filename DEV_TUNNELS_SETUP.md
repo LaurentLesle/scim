@@ -32,14 +32,17 @@ Dev Tunnels allow you to securely expose your local development server to the in
 
 ### Step 1: Start the service and dev tunnel
    ```bash
-   # Find available port and start service
-   SCIM_PORT=""
-   for port in {5000..5010}; do
-     if ! curl -s "http://localhost:$port" > /dev/null 2>&1; then
-       SCIM_PORT=$port
-       break
-     fi
-   done
+   # Set fixed port 5000 for SCIM service
+   SCIM_PORT=5000
+   
+   # Kill any existing processes on port 5000
+   echo "Checking for existing processes on port $SCIM_PORT..."
+   EXISTING_PID=$(lsof -ti:$SCIM_PORT 2>/dev/null)
+   if [ ! -z "$EXISTING_PID" ]; then
+     echo "Killing existing process on port $SCIM_PORT (PID: $EXISTING_PID)"
+     kill -9 $EXISTING_PID 2>/dev/null || true
+     sleep 2
+   fi
    
    echo "Starting SCIM service on port $SCIM_PORT"
    # Start service in background with log redirection
@@ -72,7 +75,7 @@ Dev Tunnels allow you to securely expose your local development server to the in
   TUNNEL_ID=$(devtunnel create --allow-anonymous | grep "Tunnel ID" | awk '{print $4}')
   echo "Created tunnel: $TUNNEL_ID"
 
-  # Add port forwarding for SCIM service (using the port we started above)
+  # Add port forwarding for SCIM service (fixed port 5000)
   devtunnel port create $TUNNEL_ID -p $SCIM_PORT --protocol http
 
   # Start hosting (run in background)
@@ -541,15 +544,16 @@ kill $SCIM_PID
 # Or find and kill all dotnet processes running the SCIM service
 pkill -f "dotnet.*run"
 
-# Or kill processes using your SCIM port
-fuser -k $SCIM_PORT/tcp 2>/dev/null || echo "No processes found on port $SCIM_PORT"
+# Or kill processes using port 5000 (fixed SCIM port)
+fuser -k 5000/tcp 2>/dev/null || echo "No processes found on port 5000"
+lsof -ti:5000 | xargs kill -9 2>/dev/null || echo "No processes found on port 5000"
 
 # Clean up log file (optional)
 rm -f scim.log
 
 # Verify the service is stopped
-if curl -s "http://localhost:$SCIM_PORT" > /dev/null 2>&1; then
-  echo "⚠️  SCIM service still running on port $SCIM_PORT"
+if curl -s "http://localhost:5000" > /dev/null 2>&1; then
+  echo "⚠️  SCIM service still running on port 5000"
 else
   echo "✅ SCIM service stopped successfully"
 fi
@@ -594,9 +598,9 @@ else
   # Try alternative cleanup methods
   pkill -f "dotnet.*run" && echo "✅ Stopped dotnet run processes"
   
-  if [ ! -z "$SCIM_PORT" ]; then
-    fuser -k $SCIM_PORT/tcp 2>/dev/null && echo "✅ Freed up port $SCIM_PORT"
-  fi
+  # Kill processes on port 5000 (fixed SCIM port)
+  fuser -k 5000/tcp 2>/dev/null && echo "✅ Freed up port 5000"
+  lsof -ti:5000 | xargs kill -9 2>/dev/null && echo "✅ Killed remaining processes on port 5000"
 fi
 
 # Stop dev tunnel if using CLI

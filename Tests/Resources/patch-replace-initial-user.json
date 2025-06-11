@@ -1,0 +1,73 @@
+{
+  "active": true,
+  "addresses": [
+    {
+      "type": "work",
+      "formatted": "OFYZOMERUDQY",
+      "streetAddress": "38226 Kuphal Place",
+      "locality": "FEPRKQOMERLP",
+      "region": "LBFJKFFLDQTB",
+      "postalCode": "yn15 5nr",
+      "primary": true,
+      "country": "Angola"
+    }
+  ],
+  "displayName": "FUYKMQPGVPEB",
+  "emails": [
+    {
+      "type": "work",
+      "value": "rollin@harris.info",
+      "primary": true
+    }
+  ],
+  "locale": "PMCLSPWYSOBC",
+  "name": {
+    "givenName": "Enola",
+    "familyName": "Andy",
+    "formatted": "Katelyn",
+    "middleName": "Ana",
+    "honorificPrefix": "Khalid",
+    "honorificSuffix": "Cale"
+  },
+  "nickName": "JEACTEBAGQYX",
+  "phoneNumbers": [
+    {
+      "type": "work",
+      "value": "4-485-2514",
+      "primary": true
+    },
+    {
+      "type": "mobile",
+      "value": "4-485-2514"
+    },
+    {
+      "type": "fax",
+      "value": "4-485-2514"
+    }
+  ],
+  "preferredLanguage": "yo-NG",
+  "profileUrl": "FBNLWFURCEAN",
+  "roles": [
+    {
+      "primary": "True",
+      "display": "TFXYUPBHCSBK",
+      "value": "SYWZUYJOXVKT",
+      "type": "ATLDQUBQZABY"
+    }
+  ],
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+  ],
+  "timezone": "Africa/Dar_es_Salaam",
+  "title": "TSKNYNWSLAIR",
+  "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
+    "employeeNumber": "BFPGALJQQIRC",
+    "department": "GOVBRIUNSUJJ",
+    "costCenter": "HFPOUBWXZNGW",
+    "organization": "KLVRJYURUBWZ",
+    "division": "BONBFXVGKSIA"
+  },
+  "userName": "carli_prosacco@cummeratayundt.biz",
+  "userType": "GDOESQGBMQCA"
+}

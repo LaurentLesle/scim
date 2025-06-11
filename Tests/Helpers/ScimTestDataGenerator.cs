@@ -55,42 +55,41 @@ namespace ScimServiceProvider.Tests.Helpers
                 })
                 .RuleFor(u => u.Emails, f => new List<Email>
                 {
-                    new() { Value = f.Internet.Email(), Type = "work", Primary = true },
-                    new() { Value = f.Internet.Email(), Type = "personal", Primary = false }
+                    new() { Value = f.Internet.Email(), Type = "work" },
+                    new() { Value = f.Internet.Email(), Type = "personal" }
                 }.Take(f.Random.Int(1, 2)).ToList())
                 .RuleFor(u => u.PhoneNumbers, f => new List<PhoneNumber>
                 {
-                    new() { Value = f.Phone.PhoneNumber(), Type = "work", Primary = true },
-                    new() { Value = f.Phone.PhoneNumber(), Type = "mobile", Primary = false }
+                    new() { Value = f.Phone.PhoneNumber(), Type = "work" },
+                    new() { Value = f.Phone.PhoneNumber(), Type = "mobile" }
                 }.Take(f.Random.Int(0, 2)).ToList())
                 .RuleFor(u => u.Ims, f => f.Random.Bool(0.3f) ? new List<InstantMessaging>
                 {
-                    new() { Value = f.Internet.UserName(), Type = "skype", Primary = true },
-                    new() { Value = f.Internet.UserName(), Type = "teams", Primary = false }
+                    new() { Value = f.Internet.UserName(), Type = "skype" },
+                    new() { Value = f.Internet.UserName(), Type = "teams" }
                 }.Take(f.Random.Int(1, 2)).ToList() : null)
                 .RuleFor(u => u.Photos, f => f.Random.Bool(0.2f) ? new List<Photo>
                 {
-                    new() { Value = f.Internet.Avatar(), Type = "photo", Primary = true }
+                    new() { Value = f.Internet.Avatar(), Type = "photo" }
                 }.ToList() : null)
                 .RuleFor(u => u.Entitlements, f => f.Random.Bool(0.4f) ? new List<Entitlement>
                 {
-                    new() { Value = f.Commerce.Product(), Type = "license", Primary = true },
-                    new() { Value = f.Commerce.Product(), Type = "access", Primary = false }
+                    new() { Value = f.Commerce.Product(), Type = "license" },
+                    new() { Value = f.Commerce.Product(), Type = "access" }
                 }.Take(f.Random.Int(1, 2)).ToList() : null)
                 .RuleFor(u => u.Roles, f => f.Random.Bool(0.5f) ? new List<Role>
                 {
-                    new() { Value = f.Name.JobTitle(), Type = "role", Primary = true }
+                    new() { Value = f.Name.JobTitle(), Type = "role" }
                 }.ToList() : null)
                 .RuleFor(u => u.X509Certificates, f => f.Random.Bool(0.1f) ? new List<X509Certificate>
                 {
-                    new() { Value = f.Random.Hash(128), Type = "certificate", Primary = true }
+                    new() { Value = f.Random.Hash(128), Type = "certificate" }
                 }.ToList() : null)
                 .RuleFor(u => u.Addresses, f => new List<Address>
                 {
                     new()
                     {
                         Type = "work",
-                        Primary = true,
                         StreetAddress = f.Address.StreetAddress(),
                         Locality = f.Address.City(),
                         Region = f.Address.State(),
@@ -143,8 +142,7 @@ namespace ScimServiceProvider.Tests.Helpers
                         return members.Select(u => new GroupMember
                         {
                             Value = u.Id!,
-                            Display = u.DisplayName,
-                            Type = "User"
+                            Display = u.DisplayName
                         }).ToList();
                     }
 
@@ -153,8 +151,7 @@ namespace ScimServiceProvider.Tests.Helpers
                         .Select(_ => new GroupMember
                         {
                             Value = f.Random.Guid().ToString(),
-                            Display = f.Name.FullName(),
-                            Type = "User"
+                            Display = f.Name.FullName()
                         }).ToList();
                 })
                 .RuleFor(g => g.Schemas, new List<string> { "urn:ietf:params:scim:schemas:core:2.0:Group" })

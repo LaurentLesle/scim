@@ -32,6 +32,27 @@ namespace ScimServiceProvider.Controllers
             throw new InvalidOperationException("Customer context not available");
         }
 
+        // Helper method to log internal server errors in red
+        private void LogInternalServerError(string message, Exception? ex = null)
+        {
+            if (ex != null)
+            {
+                _logger.LogError("\u001b[31m🚨 INTERNAL SERVER ERROR: {Message} - Exception: {ExceptionMessage}\u001b[0m", message, ex.Message);
+                _logger.LogError("\u001b[31m🚨 Stack Trace: {StackTrace}\u001b[0m", ex.StackTrace);
+            }
+            else
+            {
+                _logger.LogError("\u001b[31m🚨 INTERNAL SERVER ERROR: {Message}\u001b[0m", message);
+            }
+        }
+
+        private void ValidateGroupRequestJson(HttpContext context)
+        {
+            // This method could be enhanced to validate raw JSON before model binding
+            // For now, we'll rely on the GroupService validation
+            // Future enhancement: Parse raw JSON and check for invalid member attributes
+        }
+
         [HttpGet]
         public async Task<ActionResult<ScimListResponse<ScimGroup>>> GetGroups(
             [FromQuery] int startIndex = 1,
@@ -94,11 +115,11 @@ namespace ScimServiceProvider.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError("❌ Error retrieving groups: {ErrorMessage}", ex.Message);
+                LogInternalServerError("Error retrieving groups", ex);
                 return StatusCode(500, new ScimError 
                 { 
                     Status = 500, 
-                    Detail = ex.Message 
+                    Detail = "An internal server error occurred while retrieving groups." 
                 });
             }
         }
@@ -136,16 +157,16 @@ namespace ScimServiceProvider.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError("❌ Error retrieving group {GroupId}: {ErrorMessage}", id, ex.Message);
+                LogInternalServerError($"Error retrieving group {id}", ex);
                 return StatusCode(500, new ScimError 
                 { 
                     Status = 500, 
-                    Detail = ex.Message 
+                    Detail = "An internal server error occurred while retrieving the group." 
                 });
             }
         }
 
-                [HttpPost]
+        [HttpPost]
         public async Task<ActionResult<ScimGroup>> CreateGroup([FromBody] ScimGroup group)
         {
             _logger.LogInformation("➕ POST Group requested - creating group with DisplayName: {DisplayName}", group?.DisplayName ?? "null");
@@ -204,11 +225,11 @@ namespace ScimServiceProvider.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError("❌ Error creating group: {ErrorMessage}", ex.Message);
+                LogInternalServerError("Error creating group", ex);
                 return StatusCode(500, new ScimError
                 {
                     Status = 500,
-                    Detail = ex.Message
+                    Detail = "An internal server error occurred while creating the group."
                 });
             }
         }
@@ -249,11 +270,11 @@ namespace ScimServiceProvider.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError("❌ Error updating group {GroupId}: {ErrorMessage}", id, ex.Message);
+                LogInternalServerError($"Error updating group {id}", ex);
                 return StatusCode(500, new ScimError 
                 { 
                     Status = 500, 
-                    Detail = ex.Message 
+                    Detail = "An internal server error occurred while updating the group." 
                 });
             }
         }
@@ -281,13 +302,18 @@ namespace ScimServiceProvider.Controllers
                     patchedGroup.Id, patchedGroup.DisplayName, customerId);
                 return Ok(patchedGroup);
             }
+            catch (InvalidOperationException iex)
+            {
+                _logger.LogWarning("❌ Group patch validation error: {ErrorMessage}", iex.Message);
+                return BadRequest(new ScimError { Status = 400, Detail = iex.Message });
+            }
             catch (Exception ex)
             {
-                _logger.LogError("❌ Error patching group {GroupId}: {ErrorMessage}", id, ex.Message);
+                LogInternalServerError($"Error patching group {id}", ex);
                 return StatusCode(500, new ScimError 
                 { 
                     Status = 500, 
-                    Detail = ex.Message 
+                    Detail = "An internal server error occurred while patching the group." 
                 });
             }
         }
@@ -316,11 +342,11 @@ namespace ScimServiceProvider.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError("❌ Error deleting group {GroupId}: {ErrorMessage}", id, ex.Message);
+                LogInternalServerError($"Error deleting group {id}", ex);
                 return StatusCode(500, new ScimError 
                 { 
                     Status = 500, 
-                    Detail = ex.Message 
+                    Detail = "An internal server error occurred while deleting the group." 
                 });
             }
         }
@@ -386,11 +412,11 @@ namespace ScimServiceProvider.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError("❌ Error in search groups: {ErrorMessage}", ex.Message);
+                LogInternalServerError("Error in search groups", ex);
                 return StatusCode(500, new ScimError
                 {
                     Status = 500,
-                    Detail = ex.Message
+                    Detail = "An internal server error occurred while searching groups."
                 });
             }
         }

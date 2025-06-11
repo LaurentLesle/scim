@@ -1,0 +1,73 @@
+{
+  "active": true,
+  "addresses": [
+    {
+      "type": "work",
+      "formatted": "HGTVOOUZBZUT",
+      "streetAddress": "6048 Brionna Walks",
+      "locality": "TARIAVSSNDGR",
+      "region": "CUHVHSBHPWXU",
+      "postalCode": "do02 9mo",
+      "primary": true,
+      "country": "Bermuda"
+    }
+  ],
+  "displayName": "QDLHIBQAZDRB",
+  "emails": [
+    {
+      "type": "work",
+      "value": "rebeca@bartoletti.ca",
+      "primary": true
+    }
+  ],
+  "locale": "TGAIZSEQIRCY",
+  "name": {
+    "givenName": "Alejandrin",
+    "familyName": "Steve",
+    "formatted": "Kristin",
+    "middleName": "Colton",
+    "honorificPrefix": "Kamryn",
+    "honorificSuffix": "Solon"
+  },
+  "nickName": "YHXWUTHPJLEC",
+  "phoneNumbers": [
+    {
+      "type": "work",
+      "value": "17-598-9788",
+      "primary": true
+    },
+    {
+      "type": "mobile",
+      "value": "17-598-9788"
+    },
+    {
+      "type": "fax",
+      "value": "17-598-9788"
+    }
+  ],
+  "preferredLanguage": "ig-NG",
+  "profileUrl": "MZKOYDYNFWQE",
+  "roles": [
+    {
+      "primary": "True",
+      "display": "SKSURIIWQIET",
+      "value": "VRQDLEWVGSRU",
+      "type": "NKLEHXRTQEXZ"
+    }
+  ],
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+  ],
+  "timezone": "Africa/Dar_es_Salaam",
+  "title": "XZPVGNVALEPC",
+  "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
+    "employeeNumber": "WECFUZBJXJGX",
+    "department": "PLNWZSLJWTXP",
+    "costCenter": "MIASRXMVDGXN",
+    "organization": "ADNWUDUHRHIJ",
+    "division": "BFOLAOFQVXPJ"
+  },
+  "userName": "virgil_pouros@smith.info",
+  "userType": "HWJTCOGFDSXQ"
+}

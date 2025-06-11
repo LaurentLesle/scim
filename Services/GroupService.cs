@@ -72,6 +72,9 @@ namespace ScimServiceProvider.Services
             // Set customer ID
             group.CustomerId = customerId;
 
+            // Validate Group member schema compliance
+            ValidateGroupMembers(group);
+
             // SCIM compliance: Check for duplicate externalId for this customer
             if (!string.IsNullOrEmpty(group.ExternalId))
             {
@@ -89,6 +92,9 @@ namespace ScimServiceProvider.Services
             group.Meta.Created = group.Created;
             group.Meta.LastModified = group.LastModified;
             group.Meta.ResourceType = "Group";
+
+            // Populate $ref fields for members
+            PopulateMemberReferences(group);
 
             _context.Groups.Add(group);
             await _context.SaveChangesAsync();
@@ -109,6 +115,9 @@ namespace ScimServiceProvider.Services
             existingGroup.Members = group.Members;
             existingGroup.LastModified = DateTime.UtcNow;
             existingGroup.Meta.LastModified = existingGroup.LastModified;
+
+            // Populate $ref fields for members
+            PopulateMemberReferences(existingGroup);
 
             await _context.SaveChangesAsync();
             CleanupEmptyCollections(existingGroup);
@@ -134,6 +143,10 @@ namespace ScimServiceProvider.Services
             group.Schemas = new List<string> { "urn:ietf:params:scim:schemas:core:2.0:Group" };
 
             await _context.SaveChangesAsync();
+            
+            // Populate $ref fields for members
+            PopulateMemberReferences(group);
+            
             CleanupEmptyCollections(group);
             return group;
         }
@@ -160,8 +173,45 @@ namespace ScimServiceProvider.Services
                 var displayName = displayNameMatch.Groups[1].Value;
                 // Case-insensitive comparison for SCIM compliance
                 query = query.Where(g => g.DisplayName.ToLower() == displayName.ToLower());
+                return query;
             }
 
+            // Filter by Id eq "value"
+            var idMatch = Regex.Match(filter, @"\bId\s+eq\s+""([^""]+)""", RegexOptions.IgnoreCase);
+            if (idMatch.Success)
+            {
+                var id = idMatch.Groups[1].Value;
+                query = query.Where(g => g.Id == id);
+                return query;
+            }
+
+            // Filter by id eq "value" (lowercase)
+            var lowerIdMatch = Regex.Match(filter, @"\bid\s+eq\s+""([^""]+)""", RegexOptions.IgnoreCase);
+            if (lowerIdMatch.Success)
+            {
+                var id = lowerIdMatch.Groups[1].Value;
+                query = query.Where(g => g.Id == id);
+                return query;
+            }
+
+            // Filter by externalId eq "value"
+            var externalIdMatch = Regex.Match(filter, @"externalId\s+eq\s+""([^""]+)""", RegexOptions.IgnoreCase);
+            if (externalIdMatch.Success)
+            {
+                var externalId = externalIdMatch.Groups[1].Value;
+                query = query.Where(g => g.ExternalId == externalId);
+                return query;
+            }
+
+            // Check for unsupported member filter patterns (these are only valid in PATCH operations, not GET filters)
+            if (filter.Contains("members[") && filter.Contains("type eq"))
+            {
+                throw new InvalidOperationException($"The filter '{filter}' contains unsupported member type filtering. Group member filtering by type is not supported in GET operations. Please use supported filters like 'Id eq \"value\"', 'displayName eq \"value\"', or 'externalId eq \"value\"'.");
+            }
+
+            // If no patterns matched but we have a filter, it's unsupported
+            // For now, we'll just return the unfiltered query to maintain compatibility
+            // In a strict SCIM implementation, you might want to throw an error here
             return query;
         }
 
@@ -170,12 +220,114 @@ namespace ScimServiceProvider.Services
             switch (operation.Op.ToLower())
             {
                 case "replace":
-                    if (operation.Path?.ToLower() == "displayname")
+                    if (string.IsNullOrEmpty(operation.Path))
+                    {
+                        // No path specified - replace the entire resource with the value
+                        // Handle when value is a complex object containing group attributes
+                        if (operation.Value != null)
+                        {
+                            try
+                            {
+                                // Handle JsonElement (most common case)
+                                if (operation.Value is System.Text.Json.JsonElement jsonElement)
+                                {
+                                    // Update displayName if present
+                                    if (jsonElement.TryGetProperty("displayName", out var displayNameProperty))
+                                    {
+                                        group.DisplayName = displayNameProperty.GetString() ?? string.Empty;
+                                    }
+                                    
+                                    // Update externalId if present
+                                    if (jsonElement.TryGetProperty("externalId", out var externalIdProperty))
+                                    {
+                                        group.ExternalId = externalIdProperty.GetString();
+                                    }
+
+                                    // Update members if present
+                                    if (jsonElement.TryGetProperty("members", out var membersProperty) && membersProperty.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                    {
+                                        var members = new List<GroupMember>();
+                                        foreach (var memberElement in membersProperty.EnumerateArray())
+                                        {
+                                            var member = new GroupMember();
+                                            if (memberElement.TryGetProperty("value", out var valueProperty))
+                                                member.Value = valueProperty.GetString() ?? string.Empty;
+                                            if (memberElement.TryGetProperty("display", out var displayProperty))
+                                                member.Display = displayProperty.GetString();
+                                            members.Add(member);
+                                        }
+                                        group.Members = members;
+                                    }
+                                }
+                                // Handle ScimGroup object directly
+                                else if (operation.Value is ScimGroup scimGroup)
+                                {
+                                    group.DisplayName = scimGroup.DisplayName;
+                                    if (!string.IsNullOrEmpty(scimGroup.ExternalId))
+                                        group.ExternalId = scimGroup.ExternalId;
+                                    if (scimGroup.Members != null)
+                                        group.Members = scimGroup.Members;
+                                }
+                                // Handle anonymous objects or other types
+                                else
+                                {
+                                    // Serialize and deserialize to handle anonymous objects
+                                    var json = System.Text.Json.JsonSerializer.Serialize(operation.Value);
+                                    var jsonElement2 = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(json);
+                                    
+                                    // Update displayName if present
+                                    if (jsonElement2.TryGetProperty("displayName", out var displayNameProperty))
+                                    {
+                                        group.DisplayName = displayNameProperty.GetString() ?? string.Empty;
+                                    }
+                                    
+                                    // Update externalId if present
+                                    if (jsonElement2.TryGetProperty("externalId", out var externalIdProperty))
+                                    {
+                                        group.ExternalId = externalIdProperty.GetString();
+                                    }
+                                    
+                                    // Update members if present
+                                    if (jsonElement2.TryGetProperty("members", out var membersProperty) && membersProperty.ValueKind == System.Text.Json.JsonValueKind.Array)
+                                    {
+                                        var members = new List<GroupMember>();
+                                        foreach (var memberElement in membersProperty.EnumerateArray())
+                                        {
+                                            var member = new GroupMember();
+                                            if (memberElement.TryGetProperty("value", out var valueProperty))
+                                                member.Value = valueProperty.GetString() ?? string.Empty;
+                                            if (memberElement.TryGetProperty("display", out var displayProperty))
+                                                member.Display = displayProperty.GetString() ?? string.Empty;
+                                            members.Add(member);
+                                        }
+                                        group.Members = members;
+                                    }
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                throw new InvalidOperationException($"Failed to process replace operation without path: {ex.Message}", ex);
+                            }
+                        }
+                    }
+                    else if (operation.Path?.ToLower() == "displayname")
                     {
                         group.DisplayName = operation.Value?.ToString() ?? string.Empty;
                     }
+                    else if (operation.Path?.ToLower() == "externalid")
+                    {
+                        group.ExternalId = operation.Value?.ToString();
+                    }
                     else if (operation.Path?.ToLower().StartsWith("members[") == true && operation.Path.Contains("]."))
                     {
+                        // Check for unsupported attributes in member filter paths
+                        if (operation.Path.Contains("type eq"))
+                        {
+                            // SCIM Groups don't support member type filtering
+                            // According to SCIM RFC 7643, Group members only have value, display, and $ref
+                            throw new InvalidOperationException($"The attribute members[type eq \"untyped\"].value for Group is not supported by the SCIM protocol. According to SCIM RFC 7643 Section 4.2, Group members only support 'value', 'display', and '$ref' attributes, not 'type'. Please refer to the SCIM RFC for correct Group member schema.");
+                        }
+                        
                         // Handle member attribute replacement like members[value eq "user-2"].display
                         var memberFilterMatch = Regex.Match(operation.Path, @"members\[value\s+eq\s+""([^""]+)""\]\.(\w+)", RegexOptions.IgnoreCase);
                         if (memberFilterMatch.Success)
@@ -196,9 +348,7 @@ namespace ScimServiceProvider.Services
                                     case "display":
                                         memberToUpdate.Display = operation.Value?.ToString() ?? string.Empty;
                                         break;
-                                    case "type":
-                                        memberToUpdate.Type = operation.Value?.ToString() ?? "User";
-                                        break;
+
                                 }
                             }
                         }
@@ -229,8 +379,6 @@ namespace ScimServiceProvider.Services
                                         newMember.Value = valueProperty.GetString() ?? string.Empty;
                                     if (jsonElement.TryGetProperty("display", out var displayProperty))
                                         newMember.Display = displayProperty.GetString() ?? string.Empty;
-                                    if (jsonElement.TryGetProperty("type", out var typeProperty))
-                                        newMember.Type = typeProperty.GetString() ?? "User";
                                     if (!string.IsNullOrEmpty(newMember.Value))
                                     {
                                         group.Members.Add(newMember);
@@ -243,14 +391,12 @@ namespace ScimServiceProvider.Services
                                 var valueType = operation.Value.GetType();
                                 var valueProp = valueType.GetProperty("value");
                                 var displayProp = valueType.GetProperty("display");
-                                var typeProp = valueType.GetProperty("type");
                                 if (valueProp != null)
                                 {
                                     var newMember = new GroupMember
                                     {
                                         Value = valueProp.GetValue(operation.Value)?.ToString() ?? string.Empty,
-                                        Display = displayProp?.GetValue(operation.Value)?.ToString() ?? string.Empty,
-                                        Type = typeProp?.GetValue(operation.Value)?.ToString() ?? "User"
+                                        Display = displayProp?.GetValue(operation.Value)?.ToString() ?? string.Empty
                                     };
                                     if (!string.IsNullOrEmpty(newMember.Value))
                                     {
@@ -260,14 +406,46 @@ namespace ScimServiceProvider.Services
                             }
                         }
                     }
+                    else if (operation.Path?.ToLower().StartsWith("members[") == true && operation.Path.Contains("]."))
+                    {
+                        // Check for unsupported attributes in member filter paths for add operations
+                        if (operation.Path.Contains("type eq"))
+                        {
+                            // SCIM Groups don't support member type filtering
+                            // According to SCIM RFC 7643, Group members only have value, display, and $ref
+                            throw new InvalidOperationException($"Invalid path '{operation.Path}'. Group members do not support 'type' attribute filtering. Supported member attributes are 'value', 'display', and '$ref'. Please refer to SCIM RFC 7643 Section 4.2.");
+                        }
+                        
+                        // Handle member attribute addition like members[value eq "user-2"].display
+                        // For now, we don't support adding to specific members via filtered paths
+                        // This would require more complex logic to find existing members and update them
+                        throw new InvalidOperationException($"Invalid path '{operation.Path}'. Adding to specific member attributes via filtered paths is not supported. Use 'members' path to add complete member objects.");
+                    }
                     break;
                 case "remove":
-                    if (operation.Path?.ToLower().StartsWith("members") == true)
+                    if (operation.Path?.ToLower() == "externalid")
                     {
+                        group.ExternalId = null;
+                    }
+                    else if (operation.Path?.ToLower() == "members")
+                    {
+                        // Remove all members
+                        group.Members = null;
+                    }
+                    else if (operation.Path?.ToLower().StartsWith("members[") == true)
+                    {
+                        // Check for unsupported attributes in member filter paths
+                        if (operation.Path.Contains("type eq"))
+                        {
+                            // SCIM Groups don't support member type filtering
+                            // According to SCIM RFC 7643, Group members only have value, display, and $ref
+                            throw new InvalidOperationException($"The attribute members[type eq \"untyped\"].value for Group is not supported by the SCIM protocol. According to SCIM RFC 7643 Section 4.2, Group members only support 'value', 'display', and '$ref' attributes, not 'type'. Please refer to the SCIM RFC for correct Group member schema.");
+                        }
+                        
                         // Ensure Members is initialized
                         if (group.Members == null)
                             group.Members = new List<GroupMember>();
-                        // Remove member from group
+                        // Remove specific member from group
                         var memberMatch = Regex.Match(operation.Path, @"members\[value\s+eq\s+""([^""]+)""\]");
                         if (memberMatch.Success)
                         {
@@ -276,6 +454,8 @@ namespace ScimServiceProvider.Services
                         }
                     }
                     break;
+                default:
+                    throw new InvalidOperationException($"Unsupported PATCH operation: {operation.Op}");
             }
         }
 
@@ -330,6 +510,46 @@ namespace ScimServiceProvider.Services
             if (!ShouldInclude("displayname")) group.DisplayName = null!;
             if (!ShouldInclude("externalid")) group.ExternalId = null;
             if (!ShouldInclude("members")) group.Members = null;
+        }
+
+        private void PopulateMemberReferences(ScimGroup group, HttpContext? httpContext = null)
+        {
+            if (group.Members != null)
+            {
+                foreach (var member in group.Members)
+                {
+                    if (!string.IsNullOrEmpty(member.Value) && string.IsNullOrEmpty(member.Ref))
+                    {
+                        // Build the $ref URL based on member type
+                        var baseUrl = httpContext?.Request != null 
+                            ? $"{httpContext.Request.Scheme}://{httpContext.Request.Host}"
+                            : "https://localhost"; // fallback
+                        
+                        // Since SCIM group members are typically users, default to Users resource type
+                        var resourceType = "Users";
+                        member.Ref = $"{baseUrl}/scim/v2/{resourceType}/{member.Value}";
+                    }
+                }
+            }
+        }
+
+        private void ValidateGroupMembers(ScimGroup group)
+        {
+            if (group.Members == null || !group.Members.Any())
+                return;
+
+            // For now, we'll implement a simpler validation approach
+            // The main issue is that JSON deserialization ignores extra properties
+            // So we need to validate at the JSON level before deserialization
+            // This method serves as a placeholder for basic validation
+            
+            foreach (var member in group.Members)
+            {
+                if (string.IsNullOrEmpty(member.Value))
+                {
+                    throw new InvalidOperationException("Group member 'value' attribute is required and cannot be empty.");
+                }
+            }
         }
     }
 }

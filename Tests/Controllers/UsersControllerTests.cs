@@ -334,5 +334,90 @@ namespace ScimServiceProvider.Tests.Controllers
             var error = conflictResult.Value.Should().BeOfType<ScimError>().Subject;
             error.Status.Should().Be(409);
         }
+
+        [Fact]
+        public async Task PatchUser_AddManager_ReturnsUserWithManagerValue()
+        {
+            // Arrange
+            var userId = Guid.NewGuid().ToString();
+            var managerId = "manager-456-789";
+            
+            var existingUser = ScimTestDataGenerator.GenerateUser();
+            existingUser.Id = userId;
+            existingUser.EnterpriseUser = new EnterpriseUser
+            {
+                EmployeeNumber = "EMP001",
+                Department = "Engineering"
+            };
+
+            var updatedUser = new ScimUser
+            {
+                Id = userId,
+                UserName = existingUser.UserName,
+                DisplayName = existingUser.DisplayName,
+                Active = existingUser.Active,
+                CustomerId = existingUser.CustomerId,
+                Schemas = new List<string>
+                {
+                    "urn:ietf:params:scim:schemas:core:2.0:User",
+                    "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+                },
+                EnterpriseUser = new EnterpriseUser
+                {
+                    EmployeeNumber = "EMP001",
+                    Department = "Engineering",
+                    Manager = new Manager
+                    {
+                        Value = managerId,
+                        Ref = $"../Users/{managerId}"
+                    }
+                },
+                Meta = new ScimMeta
+                {
+                    ResourceType = "User",
+                    Created = DateTime.UtcNow.AddDays(-1),
+                    LastModified = DateTime.UtcNow,
+                    Version = "2"
+                }
+            };
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Operations = new List<ScimPatchOperation>
+                {
+                    new ScimPatchOperation
+                    {
+                        Op = "add",
+                        Path = "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:manager",
+                        Value = managerId
+                    }
+                }
+            };
+
+            // Mock the service to return the updated user with manager
+            _mockUserService.Setup(s => s.PatchUserAsync(userId, patchRequest, _testCustomerId))
+                .ReturnsAsync(updatedUser);
+
+            // Act
+            var result = await _controller.PatchUser(userId, patchRequest);
+
+            // Assert
+            result.Result.Should().BeOfType<OkObjectResult>();
+            var okResult = result.Result.Should().BeOfType<OkObjectResult>().Subject;
+            var user = okResult.Value.Should().BeOfType<ScimUser>().Subject;
+
+            // Verify manager is present and has the correct values
+            user.EnterpriseUser.Should().NotBeNull();
+            user.EnterpriseUser!.Manager.Should().NotBeNull("because manager should be added");
+            
+            var manager = user.EnterpriseUser.Manager!;
+            manager.Value.Should().NotBeNullOrEmpty("because manager.value is required for SCIM compliance");
+            manager.Value.Should().Be(managerId, "because manager.value should contain the manager's user ID");
+            manager.Ref.Should().NotBeNullOrEmpty("because manager.$ref is required for SCIM compliance");
+            manager.Ref.Should().Be($"../Users/{managerId}", "because manager.$ref should contain the proper URI reference");
+
+            // Verify the service was called with the correct parameters
+            _mockUserService.Verify(s => s.PatchUserAsync(userId, patchRequest, _testCustomerId), Times.Once);
+        }
     }
 }

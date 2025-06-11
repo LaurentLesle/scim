@@ -1,0 +1,73 @@
+{
+  "active": true,
+  "addresses": [
+    {
+      "type": "work",
+      "formatted": "BXXPOJZSZNDG",
+      "streetAddress": "79521 Trantow Place",
+      "locality": "CJHFSJFDLQQF",
+      "region": "ATAFETKFHEAA",
+      "postalCode": "ov1 1yi",
+      "primary": true,
+      "country": "Sri Lanka"
+    }
+  ],
+  "displayName": "AROZNLTJCGIX",
+  "emails": [
+    {
+      "type": "work",
+      "value": "wilford.hackett@weissnat.ca",
+      "primary": true
+    }
+  ],
+  "locale": "XGEIQUEGJOCN",
+  "name": {
+    "givenName": "Aron",
+    "familyName": "Lew",
+    "formatted": "Ottis",
+    "middleName": "Rebeka",
+    "honorificPrefix": "Horace",
+    "honorificSuffix": "Dorothea"
+  },
+  "nickName": "BPCIMWNZECVM",
+  "phoneNumbers": [
+    {
+      "type": "work",
+      "value": "36-073-4567",
+      "primary": true
+    },
+    {
+      "type": "mobile",
+      "value": "36-073-4567"
+    },
+    {
+      "type": "fax",
+      "value": "36-073-4567"
+    }
+  ],
+  "preferredLanguage": "az",
+  "profileUrl": "ZPDMKPHXFEBJ",
+  "roles": [
+    {
+      "primary": "True",
+      "display": "BNGJHKQDZSYE",
+      "value": "IGVZALHZTGMN",
+      "type": "ULYPRNSUAFRQ"
+    }
+  ],
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+  ],
+  "timezone": "Africa/Conakry",
+  "title": "ZUBVKPMVPEEM",
+  "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
+    "employeeNumber": "ILBQFTAJKGGC",
+    "department": "OOHNREPLZNPL",
+    "costCenter": "LBTMPKFDEKMV",
+    "organization": "OBNBAWJBNWZI",
+    "division": "NRSNSZCWMRPW"
+  },
+  "userName": "kyla@wisozkpollich.name",
+  "userType": "PDRILYBHOQOQ"
+}

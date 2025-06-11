@@ -71,8 +71,7 @@ namespace ScimServiceProvider.Tests.Models
             var member = new GroupMember
             {
                 Value = "user123",
-                Display = null, // This should be ignored when null
-                Type = "User"
+                Display = null // This should be ignored when null
             };
 
             // Act
@@ -81,7 +80,6 @@ namespace ScimServiceProvider.Tests.Models
             // Assert
             Assert.DoesNotContain("\"display\"", json);
             Assert.Contains("\"value\":\"user123\"", json);
-            Assert.Contains("\"type\":\"User\"", json);
         }
 
         [Fact]
@@ -154,8 +152,7 @@ namespace ScimServiceProvider.Tests.Models
             {
                 Value = "admin",
                 Display = null,     // This should be ignored when null
-                Type = "role",
-                Primary = false     // This should not be ignored as it's not nullable
+                Type = "role"
             };
 
             // Act
@@ -163,7 +160,6 @@ namespace ScimServiceProvider.Tests.Models
 
             // Assert
             Assert.DoesNotContain("\"display\"", json);
-            Assert.Contains("\"primary\"", json); // Primary is now bool, not nullable
             Assert.Contains("\"value\":\"admin\"", json);
             Assert.Contains("\"type\":\"role\"", json);
         }

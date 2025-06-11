@@ -165,6 +165,7 @@ namespace ScimServiceProvider.Models
         public string Type { get; set; } = "work";
         
         [System.Text.Json.Serialization.JsonPropertyName("primary")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
         public bool Primary { get; set; } = false;
 
         public bool Equals(Email? other)
@@ -173,7 +174,7 @@ namespace ScimServiceProvider.Models
             if (ReferenceEquals(this, other)) return true;
             return Value == other.Value && 
                    Display == other.Display && 
-                   Type == other.Type && 
+                   Type == other.Type &&
                    Primary == other.Primary;
         }
 
@@ -201,6 +202,7 @@ namespace ScimServiceProvider.Models
         public string Type { get; set; } = "work";
         
         [System.Text.Json.Serialization.JsonPropertyName("primary")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
         public bool Primary { get; set; } = false;
 
         public bool Equals(PhoneNumber? other)
@@ -209,7 +211,7 @@ namespace ScimServiceProvider.Models
             if (ReferenceEquals(this, other)) return true;
             return Value == other.Value && 
                    Display == other.Display && 
-                   Type == other.Type && 
+                   Type == other.Type &&
                    Primary == other.Primary;
         }
 
@@ -254,7 +256,8 @@ namespace ScimServiceProvider.Models
         public string Type { get; set; } = "work";
         
         [System.Text.Json.Serialization.JsonPropertyName("primary")]
-        public bool Primary { get; set; } = false;
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+        public bool Primary { get; set; }
 
         public bool Equals(Address? other)
         {
@@ -266,7 +269,7 @@ namespace ScimServiceProvider.Models
                    Region == other.Region && 
                    PostalCode == other.PostalCode && 
                    Country == other.Country && 
-                   Type == other.Type && 
+                   Type == other.Type &&
                    Primary == other.Primary;
         }
 
@@ -331,7 +334,8 @@ namespace ScimServiceProvider.Models
         public string Type { get; set; } = string.Empty;
         
         [System.Text.Json.Serialization.JsonPropertyName("primary")]
-        public bool Primary { get; set; } = false;
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+        public string? Primary { get; set; }
 
         public bool Equals(Role? other)
         {
@@ -339,7 +343,7 @@ namespace ScimServiceProvider.Models
             if (ReferenceEquals(this, other)) return true;
             return Value == other.Value && 
                    Display == other.Display && 
-                   Type == other.Type && 
+                   Type == other.Type &&
                    Primary == other.Primary;
         }
 
@@ -449,6 +453,7 @@ namespace ScimServiceProvider.Models
         public string Type { get; set; } = string.Empty;
         
         [System.Text.Json.Serialization.JsonPropertyName("primary")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
         public bool Primary { get; set; } = false;
 
         public bool Equals(InstantMessaging? other)
@@ -457,7 +462,7 @@ namespace ScimServiceProvider.Models
             if (ReferenceEquals(this, other)) return true;
             return Value == other.Value && 
                    Display == other.Display && 
-                   Type == other.Type && 
+                   Type == other.Type &&
                    Primary == other.Primary;
         }
 
@@ -485,6 +490,7 @@ namespace ScimServiceProvider.Models
         public string Type { get; set; } = string.Empty;
         
         [System.Text.Json.Serialization.JsonPropertyName("primary")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
         public bool Primary { get; set; } = false;
 
         public bool Equals(Photo? other)
@@ -493,7 +499,7 @@ namespace ScimServiceProvider.Models
             if (ReferenceEquals(this, other)) return true;
             return Value == other.Value && 
                    Display == other.Display && 
-                   Type == other.Type && 
+                   Type == other.Type &&
                    Primary == other.Primary;
         }
 
@@ -521,6 +527,7 @@ namespace ScimServiceProvider.Models
         public string Type { get; set; } = string.Empty;
         
         [System.Text.Json.Serialization.JsonPropertyName("primary")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
         public bool Primary { get; set; } = false;
 
         public bool Equals(Entitlement? other)
@@ -529,7 +536,7 @@ namespace ScimServiceProvider.Models
             if (ReferenceEquals(this, other)) return true;
             return Value == other.Value && 
                    Display == other.Display && 
-                   Type == other.Type && 
+                   Type == other.Type &&
                    Primary == other.Primary;
         }
 
@@ -557,6 +564,7 @@ namespace ScimServiceProvider.Models
         public string Type { get; set; } = string.Empty;
         
         [System.Text.Json.Serialization.JsonPropertyName("primary")]
+        [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
         public bool Primary { get; set; } = false;
 
         public bool Equals(X509Certificate? other)
@@ -565,7 +573,7 @@ namespace ScimServiceProvider.Models
             if (ReferenceEquals(this, other)) return true;
             return Value == other.Value && 
                    Display == other.Display && 
-                   Type == other.Type && 
+                   Type == other.Type &&
                    Primary == other.Primary;
         }
 

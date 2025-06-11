@@ -28,8 +28,8 @@ namespace ScimServiceProvider.Tests.Services
         public async Task PatchGroupAsync_RemoveMemberByValue_RemovesCorrectMember()
         {
             // Arrange
-            var member1 = new GroupMember { Value = "user-1", Display = "User 1", Type = "User" };
-            var member2 = new GroupMember { Value = "user-2", Display = "User 2", Type = "User" };
+            var member1 = new GroupMember { Value = "user-1", Display = "User 1" };
+            var member2 = new GroupMember { Value = "user-2", Display = "User 2" };
             var group = new ScimGroup
             {
                 Id = Guid.NewGuid().ToString(),
@@ -62,7 +62,7 @@ namespace ScimServiceProvider.Tests.Services
         public async Task PatchGroupAsync_ReplaceDisplayOfMember_UpdatesMember()
         {
             // Arrange
-            var member = new GroupMember { Value = "user-1", Display = "User 1", Type = "User" };
+            var member = new GroupMember { Value = "user-1", Display = "User 1" };
             var group = new ScimGroup
             {
                 Id = Guid.NewGuid().ToString(),
@@ -109,8 +109,8 @@ namespace ScimServiceProvider.Tests.Services
                 Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
                 Operations = new List<ScimPatchOperation>
                 {
-                    new() { Op = "add", Path = "members", Value = new { value = "user-1", display = "User 1", type = "User" } },
-                    new() { Op = "add", Path = "members", Value = new { value = "user-2", display = "User 2", type = "User" } },
+                    new() { Op = "add", Path = "members", Value = new { value = "user-1", display = "User 1" } },
+                    new() { Op = "add", Path = "members", Value = new { value = "user-2", display = "User 2" } },
                     new() { Op = "replace", Path = "members[value eq \"user-2\"].display", Value = "Updated User 2" }
                 }
             };
@@ -254,7 +254,6 @@ namespace ScimServiceProvider.Tests.Services
             result.Members.Should().HaveCount(3);
             result.Members.Should().AllSatisfy(member => 
             {
-                member.Type.Should().Be("User");
                 member.Value.Should().NotBeNullOrEmpty();
                 member.Display.Should().NotBeNullOrEmpty();
             });
@@ -349,7 +348,7 @@ namespace ScimServiceProvider.Tests.Services
                     { 
                         Op = "add", 
                         Path = "members", 
-                        Value = new { value = testUser.Id, display = testUser.DisplayName, type = "User" }
+                        Value = new { value = testUser.Id, display = testUser.DisplayName }
                     }
                 }
             };
@@ -417,8 +416,8 @@ namespace ScimServiceProvider.Tests.Services
             DisplayName = "Test Group",
             Members = new List<GroupMember>
             {
-                new() { Value = Guid.NewGuid().ToString(), Display = "User 1", Type = "User" },
-                new() { Value = Guid.NewGuid().ToString(), Display = null, Type = "User" } // Null display
+                new() { Value = Guid.NewGuid().ToString(), Display = "User 1" },
+                new() { Value = Guid.NewGuid().ToString(), Display = null } // Null display
             }
         };
 
@@ -489,5 +488,635 @@ namespace ScimServiceProvider.Tests.Services
             result.Resources.First().DisplayName.Should().Be("engineering team");
         }
 
+        [Fact]
+        public async Task PatchGroupAsync_ReplaceOperationWithoutPath_ReplacesEntireResource()
+        {
+            // Arrange
+            var originalGroup = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Original Group Name",
+                ExternalId = "original-external-id",
+                CustomerId = _testCustomerId,
+                Members = new List<GroupMember>
+                {
+                    new() { Value = "user-1", Display = "User 1" }
+                }
+            };
+            _context.Groups.Add(originalGroup);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() 
+                    { 
+                        Op = "replace", 
+                        // No Path specified - should replace entire resource
+                        Value = new ScimGroup
+                        {
+                            DisplayName = "Completely New Group Name",
+                            ExternalId = "new-external-id",
+                            Members = new List<GroupMember>
+                            {
+                                new() { Value = "user-2", Display = "User 2" }
+                            }
+                        }
+                    }
+                }
+            };
+
+            // Act
+            var result = await _groupService.PatchGroupAsync(originalGroup.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.DisplayName.Should().Be("Completely New Group Name");
+            result.ExternalId.Should().Be("new-external-id");
+            result.Members.Should().ContainSingle(m => m.Value == "user-2");
+            result.Members.Should().NotContain(m => m.Value == "user-1");
+
+            // Verify in database
+            var dbGroup = await _context.Groups.FindAsync(originalGroup.Id);
+            dbGroup!.DisplayName.Should().Be("Completely New Group Name");
+            dbGroup.ExternalId.Should().Be("new-external-id");
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_ReplaceDisplayNameWithoutPath_UpdatesDisplayNameOnly()
+        {
+            // Arrange - This test mimics the exact scenario from the compliance test
+            var originalGroup = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "IIKEMXUQUWFG",
+                ExternalId = "6610dddd-2773-434f-aff8-c0824bef52df",
+                CustomerId = _testCustomerId
+            };
+            _context.Groups.Add(originalGroup);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() 
+                    { 
+                        Op = "replace", 
+                        // No Path specified, but value contains only displayName - compliance test scenario
+                        Value = new { displayName = "UCAMNYBKMBEU" }
+                    }
+                }
+            };
+
+            // Act
+            var result = await _groupService.PatchGroupAsync(originalGroup.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.DisplayName.Should().Be("UCAMNYBKMBEU");
+            result.ExternalId.Should().Be("6610dddd-2773-434f-aff8-c0824bef52df"); // Should remain unchanged
+            result.Id.Should().Be(originalGroup.Id); // Should remain unchanged
+
+            // Verify in database
+            var dbGroup = await _context.Groups.FindAsync(originalGroup.Id);
+            dbGroup!.DisplayName.Should().Be("UCAMNYBKMBEU");
+            dbGroup.ExternalId.Should().Be("6610dddd-2773-434f-aff8-c0824bef52df");
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_MultipleReplaceOperationsWithoutPath_AppliesAllChanges()
+        {
+            // Arrange
+            var originalGroup = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Original Name",
+                ExternalId = "original-id",
+                CustomerId = _testCustomerId
+            };
+            _context.Groups.Add(originalGroup);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() 
+                    { 
+                        Op = "replace", 
+                        Value = new { displayName = "First Update" }
+                    },
+                    new() 
+                    { 
+                        Op = "replace", 
+                        Value = new { externalId = "updated-external-id" }
+                    }
+                }
+            };
+
+            // Act
+            var result = await _groupService.PatchGroupAsync(originalGroup.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.DisplayName.Should().Be("First Update");
+            result.ExternalId.Should().Be("updated-external-id");
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_ReplaceWithInvalidOperation_ThrowsException()
+        {
+            // Arrange
+            var originalGroup = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Original Name",
+                CustomerId = _testCustomerId
+            };
+            _context.Groups.Add(originalGroup);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() 
+                    { 
+                        Op = "invalid_operation", 
+                        Value = new { displayName = "Should Fail" }
+                    }
+                }
+            };
+
+            // Act & Assert
+            await Assert.ThrowsAsync<InvalidOperationException>(
+                () => _groupService.PatchGroupAsync(originalGroup.Id!, patchRequest, _testCustomerId));
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_ReplaceExternalIdWithPath_UpdatesExternalId()
+        {
+            // Arrange
+            var originalGroup = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Test Group",
+                ExternalId = "original-external-id",
+                CustomerId = _testCustomerId
+            };
+            _context.Groups.Add(originalGroup);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() { Op = "replace", Path = "externalId", Value = "new-external-id" }
+                }
+            };
+
+            // Act
+            var result = await _groupService.PatchGroupAsync(originalGroup.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.ExternalId.Should().Be("new-external-id");
+            result.DisplayName.Should().Be("Test Group"); // Should remain unchanged
+
+            // Verify in database
+            var dbGroup = await _context.Groups.FindAsync(originalGroup.Id);
+            dbGroup!.ExternalId.Should().Be("new-external-id");
+            dbGroup.DisplayName.Should().Be("Test Group");
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_ReplaceMultipleAttributesWithPaths_UpdatesAllAttributes()
+        {
+            // Arrange
+            var originalGroup = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Original Name",
+                ExternalId = "original-id",
+                CustomerId = _testCustomerId
+            };
+            _context.Groups.Add(originalGroup);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() { Op = "replace", Path = "displayName", Value = "New Display Name" },
+                    new() { Op = "replace", Path = "externalId", Value = "new-external-id" }
+                }
+            };
+
+            // Act
+            var result = await _groupService.PatchGroupAsync(originalGroup.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.DisplayName.Should().Be("New Display Name");
+            result.ExternalId.Should().Be("new-external-id");
+
+            // Verify in database
+            var dbGroup = await _context.Groups.FindAsync(originalGroup.Id);
+            dbGroup!.DisplayName.Should().Be("New Display Name");
+            dbGroup.ExternalId.Should().Be("new-external-id");
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_ReplaceExternalIdWithoutPath_UpdatesExternalId()
+        {
+            // Arrange
+            var originalGroup = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Test Group",
+                ExternalId = "original-external-id",
+                CustomerId = _testCustomerId
+            };
+            _context.Groups.Add(originalGroup);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() 
+                    { 
+                        Op = "replace", 
+                        Value = new { externalId = "updated-external-id" }
+                    }
+                }
+            };
+
+            // Act
+            var result = await _groupService.PatchGroupAsync(originalGroup.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.ExternalId.Should().Be("updated-external-id");
+            result.DisplayName.Should().Be("Test Group"); // Should remain unchanged
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_ReplaceCompleteGroupWithoutPath_UpdatesAllProvidedAttributes()
+        {
+            // Arrange
+            var originalGroup = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Original Name",
+                ExternalId = "original-id",
+                CustomerId = _testCustomerId,
+                Members = new List<GroupMember>
+                {
+                    new() { Value = "user-1", Display = "User 1" }
+                }
+            };
+            _context.Groups.Add(originalGroup);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() 
+                    { 
+                        Op = "replace", 
+                        Value = new 
+                        {
+                            displayName = "Completely New Name",
+                            externalId = "completely-new-id",
+                            members = new[]
+                            {
+                                new { value = "user-2", display = "User 2" },
+                                new { value = "user-3", display = "User 3" }
+                            }
+                        }
+                    }
+                }
+            };
+
+            // Act
+            var result = await _groupService.PatchGroupAsync(originalGroup.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.DisplayName.Should().Be("Completely New Name");
+            result.ExternalId.Should().Be("completely-new-id");
+            result.Members.Should().HaveCount(2);
+            result.Members.Should().Contain(m => m.Value == "user-2" && m.Display == "User 2");
+            result.Members.Should().Contain(m => m.Value == "user-3" && m.Display == "User 3");
+            result.Members.Should().NotContain(m => m.Value == "user-1");
+
+            // Verify in database
+            var dbGroup = await _context.Groups.FindAsync(originalGroup.Id);
+            dbGroup!.DisplayName.Should().Be("Completely New Name");
+            dbGroup.ExternalId.Should().Be("completely-new-id");
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_RemoveExternalIdWithPath_SetsExternalIdToNull()
+        {
+            // Arrange
+            var originalGroup = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Test Group",
+                ExternalId = "external-id-to-remove",
+                CustomerId = _testCustomerId
+            };
+            _context.Groups.Add(originalGroup);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() { Op = "remove", Path = "externalId" }
+                }
+            };
+
+            // Act
+            var result = await _groupService.PatchGroupAsync(originalGroup.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.ExternalId.Should().BeNull();
+            result.DisplayName.Should().Be("Test Group"); // Should remain unchanged
+        }
+
+        [Fact]
+        public async Task CreateGroupAsync_WithMembersAndExternalId_PopulatesAllAttributes()
+        {
+            // Arrange
+            var members = new List<GroupMember>
+            {
+                new() { Value = "user-1", Display = "User 1" },
+                new() { Value = "user-2", Display = "User 2" }
+            };
+            
+            var group = new ScimGroup
+            {
+                DisplayName = "Test Group with All Attributes",
+                ExternalId = "ext-test-group-123",
+                Members = members,
+                CustomerId = _testCustomerId
+            };
+
+            // Act
+            var result = await _groupService.CreateGroupAsync(group, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result.DisplayName.Should().Be("Test Group with All Attributes");
+            result.ExternalId.Should().Be("ext-test-group-123");
+            result.Members.Should().HaveCount(2);
+            
+            foreach (var member in result.Members!)
+            {
+                member.Ref.Should().NotBeNullOrEmpty();
+                member.Ref.Should().StartWith("https://localhost/scim/v2/Users/");
+                member.Ref.Should().EndWith(member.Value);
+            }
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_ReplaceAllAttributes_UpdatesCompleteGroup()
+        {
+            // Arrange
+            var originalGroup = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Original Group",
+                ExternalId = "original-ext-id",
+                Members = new List<GroupMember>
+                {
+                    new() { Value = "user-1", Display = "User 1" }
+                },
+                CustomerId = _testCustomerId
+            };
+            
+            _context.Groups.Add(originalGroup);
+            await _context.SaveChangesAsync();
+            
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() 
+                    { 
+                        Op = "replace",
+                        Value = new
+                        {
+                            displayName = "Completely Updated Group",
+                            externalId = "new-ext-id-456",
+                            members = new[]
+                            {
+                                new { value = "user-2", display = "User 2" },
+                                new { value = "user-3", display = "User 3" },
+                                new { value = "user-4", display = "User 4" }
+                            }
+                        }
+                    }
+                }
+            };
+
+            // Act
+            var result = await _groupService.PatchGroupAsync(originalGroup.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.DisplayName.Should().Be("Completely Updated Group");
+            result.ExternalId.Should().Be("new-ext-id-456");
+            result.Members.Should().HaveCount(3);
+            
+            // Verify all new members are present and old one is gone
+            result.Members.Should().Contain(m => m.Value == "user-2" && m.Display == "User 2");
+            result.Members.Should().Contain(m => m.Value == "user-3" && m.Display == "User 3");
+            result.Members.Should().Contain(m => m.Value == "user-4" && m.Display == "User 4");
+            result.Members.Should().NotContain(m => m.Value == "user-1");
+            
+            // Verify $ref properties are populated
+            foreach (var member in result.Members!)
+            {
+                member.Ref.Should().StartWith("https://localhost/scim/v2/Users/");
+                member.Ref.Should().EndWith(member.Value);
+            }
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_UpdateMemberDisplayName_UpdatesSpecificMemberAttribute()
+        {
+            // Arrange
+            var originalGroup = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Test Group",
+                Members = new List<GroupMember>
+                {
+                    new() { Value = "user-1", Display = "Original Name" },
+                    new() { Value = "user-2", Display = "User 2" }
+                },
+                CustomerId = _testCustomerId
+            };
+            
+            _context.Groups.Add(originalGroup);
+            await _context.SaveChangesAsync();
+            
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() 
+                    { 
+                        Op = "replace",
+                        Path = "members[value eq \"user-1\"].display",
+                        Value = "Updated Display Name"
+                    }
+                }
+            };
+
+            // Act
+            var result = await _groupService.PatchGroupAsync(originalGroup.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.Members.Should().HaveCount(2);
+            
+            var updatedMember = result.Members!.First(m => m.Value == "user-1");
+            updatedMember.Display.Should().Be("Updated Display Name");
+            
+            var unchangedMember = result.Members!.First(m => m.Value == "user-2");
+            unchangedMember.Display.Should().Be("User 2");
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_UpdateMemberType_UpdatesSpecificMemberAttribute()
+        {
+            // Arrange
+            var originalGroup = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Test Group",
+                Members = new List<GroupMember>
+                {
+                    new() { Value = "group-1", Display = "Nested Group" }, // Note: originally intended as wrong type
+                    new() { Value = "user-2", Display = "User 2" }
+                },
+                CustomerId = _testCustomerId
+            };
+            
+            _context.Groups.Add(originalGroup);
+            await _context.SaveChangesAsync();
+            
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() 
+                    { 
+                        Op = "replace",
+                        Path = "members[value eq \"group-1\"].display",
+                        Value = "Updated Group Display"
+                    }
+                }
+            };
+
+            // Act
+            var result = await _groupService.PatchGroupAsync(originalGroup.Id!, patchRequest, _testCustomerId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.Members.Should().HaveCount(2);
+            
+            var updatedMember = result.Members!.First(m => m.Value == "group-1");
+            updatedMember.Display.Should().Be("Updated Group Display"); // Should be updated by the patch
+            
+            var unchangedMember = result.Members!.First(m => m.Value == "user-2");
+            unchangedMember.Display.Should().Be("User 2");
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_RemoveMemberWithTypeAttribute_ThrowsInvalidOperationException()
+        {
+            // Arrange
+            var member1 = new GroupMember { Value = "user-1", Display = "User 1" };
+            var member2 = new GroupMember { Value = "user-2", Display = "User 2" };
+            var group = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Test Group",
+                Members = new List<GroupMember> { member1, member2 },
+                CustomerId = _testCustomerId
+            };
+            _context.Groups.Add(group);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() { Op = "remove", Path = "members[type eq \"untyped\"].value" }
+                }
+            };
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => _groupService.PatchGroupAsync(group.Id!, patchRequest, _testCustomerId));
+            
+            exception.Message.Should().Contain("members[type eq \"untyped\"].value for Group is not supported by the SCIM protocol");
+        }
+
+        [Fact]
+        public async Task PatchGroupAsync_ReplaceMemberWithTypeAttribute_ThrowsInvalidOperationException()
+        {
+            // Arrange
+            var member1 = new GroupMember { Value = "user-1", Display = "User 1" };
+            var group = new ScimGroup
+            {
+                Id = Guid.NewGuid().ToString(),
+                DisplayName = "Test Group",
+                Members = new List<GroupMember> { member1 },
+                CustomerId = _testCustomerId
+            };
+            _context.Groups.Add(group);
+            await _context.SaveChangesAsync();
+
+            var patchRequest = new ScimPatchRequest
+            {
+                Schemas = new List<string> { "urn:ietf:params:scim:api:messages:2.0:PatchOp" },
+                Operations = new List<ScimPatchOperation>
+                {
+                    new() { Op = "replace", Path = "members[type eq \"User\"].display", Value = "Updated Display" }
+                }
+            };
+
+            // Act & Assert
+            var exception = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => _groupService.PatchGroupAsync(group.Id!, patchRequest, _testCustomerId));
+            
+            exception.Message.Should().Contain("members[type eq \"untyped\"].value for Group is not supported by the SCIM protocol");
+        }
+
+        // ...existing tests...
     }
 }

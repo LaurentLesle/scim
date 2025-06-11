@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using ScimServiceProvider.Data;
 using ScimServiceProvider.Models;
 using ScimServiceProvider.Tests.Helpers;
@@ -163,9 +164,9 @@ namespace ScimServiceProvider.Tests.Integration
             response.StatusCode.Should().Be(HttpStatusCode.OK);
             
             var content = await response.Content.ReadAsStringAsync();
-            var schemas = JsonConvert.DeserializeObject<dynamic[]>(content);
+            var listResponse = JsonConvert.DeserializeObject<JObject>(content);
 
-            schemas!.Should().HaveCount(2);
+            listResponse!["resources"]!.Should().HaveCount(2);
         }
 
         [Fact]

@@ -19,7 +19,7 @@ namespace ScimServiceProvider.Controllers
         [HttpGet("Schemas")]
         public ActionResult GetSchemas()
         {
-            _logger.LogInformation("📄 Schemas endpoint requested - returning array of schemas");
+            _logger.LogInformation("📄 Schemas endpoint requested - returning SCIM list response");
             
             var schemas = new[]
             {
@@ -27,8 +27,17 @@ namespace ScimServiceProvider.Controllers
                 GetGroupSchema()
             };
 
-            _logger.LogInformation("✅ Returning {SchemaCount} schemas in response", schemas.Length);
-            return Ok(schemas);
+            var response = new
+            {
+                schemas = new[] { "urn:ietf:params:scim:api:messages:2.0:ListResponse" },
+                totalResults = schemas.Length,
+                startIndex = 1,
+                itemsPerPage = schemas.Length,
+                Resources = schemas
+            };
+
+            _logger.LogInformation("✅ Returning {SchemaCount} schemas in SCIM list response", schemas.Length);
+            return Ok(response);
         }
 
         [HttpGet("Schemas/{schemaUri}")]
@@ -316,11 +325,11 @@ namespace ScimServiceProvider.Controllers
                             new
                             {
                                 name = "display",
-                                type = "string",
-                                description = "A human-readable name, primarily used for display purposes",
+                                type = "string", 
+                                description = "A human readable name, primarily used for display purposes. READ-ONLY.",
                                 required = false,
                                 caseExact = false,
-                                mutability = "readWrite",
+                                mutability = "readOnly",
                                 returned = "default",
                                 uniqueness = "none",
                                 multiValued = false
@@ -379,10 +388,10 @@ namespace ScimServiceProvider.Controllers
                             {
                                 name = "display",
                                 type = "string",
-                                description = "A human-readable name, primarily used for display purposes",
+                                description = "A human readable name, primarily used for display purposes. READ-ONLY.",
                                 required = false,
                                 caseExact = false,
-                                mutability = "readWrite",
+                                mutability = "readOnly",
                                 returned = "default",
                                 uniqueness = "none",
                                 multiValued = false
@@ -508,17 +517,6 @@ namespace ScimServiceProvider.Controllers
                                 returned = "default",
                                 uniqueness = "none",
                                 canonicalValues = new[] { "work", "home", "other" },
-                                multiValued = false
-                            },
-                            new
-                            {
-                                name = "primary",
-                                type = "boolean",
-                                description = "A Boolean value indicating the 'primary' or preferred attribute value for this attribute",
-                                required = false,
-                                mutability = "readWrite",
-                                returned = "default",
-                                uniqueness = "none",
                                 multiValued = false
                             }
                         }
@@ -749,19 +747,6 @@ namespace ScimServiceProvider.Controllers
                                 mutability = "immutable",
                                 returned = "default",
                                 uniqueness = "none",
-                                multiValued = false
-                            },
-                            new
-                            {
-                                name = "type",
-                                type = "string",
-                                description = "A label indicating the type of resource",
-                                required = false,
-                                caseExact = false,
-                                mutability = "immutable",
-                                returned = "default",
-                                uniqueness = "none",
-                                canonicalValues = new[] { "User", "Group" },
                                 multiValued = false
                             },
                             new

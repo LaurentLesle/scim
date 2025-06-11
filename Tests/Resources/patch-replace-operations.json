@@ -1,0 +1,112 @@
+{
+  "Operations": [
+    {
+      "op": "replace",
+      "path": "emails[type eq \"work\"].value",
+      "value": "rollin@harris.info"
+    },
+    {
+      "op": "replace",
+      "path": "emails[type eq \"work\"].primary",
+      "value": true
+    },
+    {
+      "op": "replace",
+      "path": "addresses[type eq \"work\"].formatted",
+      "value": "OFYZOMERUDQY"
+    },
+    {
+      "op": "replace",
+      "path": "addresses[type eq \"work\"].streetAddress",
+      "value": "38226 Kuphal Place"
+    },
+    {
+      "op": "replace",
+      "path": "addresses[type eq \"work\"].locality",
+      "value": "FEPRKQOMERLP"
+    },
+    {
+      "op": "replace",
+      "path": "addresses[type eq \"work\"].region",
+      "value": "LBFJKFFLDQTB"
+    },
+    {
+      "op": "replace",
+      "path": "addresses[type eq \"work\"].postalCode",
+      "value": "yn15 5nr"
+    },
+    {
+      "op": "replace",
+      "path": "addresses[type eq \"work\"].primary",
+      "value": true
+    },
+    {
+      "op": "replace",
+      "path": "addresses[type eq \"work\"].country",
+      "value": "Angola"
+    },
+    {
+      "op": "replace",
+      "path": "phoneNumbers[type eq \"work\"].value",
+      "value": "4-485-2514"
+    },
+    {
+      "op": "replace",
+      "path": "phoneNumbers[type eq \"work\"].primary",
+      "value": true
+    },
+    {
+      "op": "replace",
+      "path": "phoneNumbers[type eq \"mobile\"].value",
+      "value": "4-485-2514"
+    },
+    {
+      "op": "replace",
+      "path": "phoneNumbers[type eq \"fax\"].value",
+      "value": "4-485-2514"
+    },
+    {
+      "op": "replace",
+      "path": "roles[primary eq \"True\"].display",
+      "value": "TFXYUPBHCSBK"
+    },
+    {
+      "op": "replace",
+      "path": "roles[primary eq \"True\"].value",
+      "value": "SYWZUYJOXVKT"
+    },
+    {
+      "op": "replace",
+      "path": "roles[primary eq \"True\"].type",
+      "value": "ATLDQUBQZABY"
+    },
+    {
+      "op": "replace",
+      "value": {
+        "active": true,
+        "displayName": "RAZHWSOBRCUA",
+        "title": "CXFAJRVENDZM",
+        "preferredLanguage": "en-CC",
+        "name.givenName": "Enola",
+        "name.familyName": "Andy",
+        "name.formatted": "Katelyn",
+        "name.middleName": "Ana",
+        "name.honorificPrefix": "Khalid",
+        "name.honorificSuffix": "Cale",
+        "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:employeeNumber": "BFPGALJQQIRC",
+        "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:department": "GOVBRIUNSUJJ",
+        "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:costCenter": "HFPOUBWXZNGW",
+        "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:organization": "KLVRJYURUBWZ",
+        "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:division": "BONBFXVGKSIA",
+        "userType": "SVBMLRRZLUPS",
+        "nickName": "RBLQDPBRTNLU",
+        "locale": "LUBTPVKNGIDM",
+        "timezone": "Africa/Maputo",
+        "profileUrl": "GYLOKHJZNGVT"
+      }
+    }
+  ],
+  "schemas": [
+    "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+  ]
+}

@@ -32,6 +32,20 @@ namespace ScimServiceProvider.Controllers
             throw new InvalidOperationException("Customer context not available");
         }
 
+        // Helper method to log internal server errors in red
+        private void LogInternalServerError(string message, Exception? ex = null)
+        {
+            if (ex != null)
+            {
+                _logger.LogError("\u001b[31m🚨 INTERNAL SERVER ERROR: {Message} - Exception: {ExceptionMessage}\u001b[0m", message, ex.Message);
+                _logger.LogError("\u001b[31m🚨 Stack Trace: {StackTrace}\u001b[0m", ex.StackTrace);
+            }
+            else
+            {
+                _logger.LogError("\u001b[31m🚨 INTERNAL SERVER ERROR: {Message}\u001b[0m", message);
+            }
+        }
+
         [HttpGet]
         public async Task<ActionResult<ScimListResponse<ScimUser>>> GetUsers(
             [FromQuery] int startIndex = 1,
@@ -94,11 +108,11 @@ namespace ScimServiceProvider.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError("❌ Error retrieving users: {ErrorMessage}", ex.Message);
+                LogInternalServerError("Error retrieving users", ex);
                 return StatusCode(500, new ScimError 
                 { 
                     Status = 500, 
-                    Detail = ex.Message 
+                    Detail = "An internal server error occurred while retrieving users." 
                 });
             }
         }
@@ -284,9 +298,18 @@ namespace ScimServiceProvider.Controllers
                     patchedUser.Id, patchedUser.UserName, customerId);
                 return Ok(patchedUser);
             }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("read-only"))
+            {
+                _logger.LogWarning("❌ User patch failed - read-only field violation: {ErrorMessage}", ex.Message);
+                return BadRequest(new ScimError 
+                { 
+                    Status = 400, 
+                    Detail = ex.Message 
+                });
+            }
             catch (Exception ex)
             {
-                _logger.LogError("❌ Error patching user {UserId}: {ErrorMessage}", id, ex.Message);
+                LogInternalServerError($"Error patching user {id}: {ex.Message}", ex);
                 return StatusCode(500, new ScimError 
                 { 
                     Status = 500, 

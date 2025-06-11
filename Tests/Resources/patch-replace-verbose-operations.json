@@ -1,0 +1,187 @@
+{
+  "Operations": [
+    {
+      "op": "replace",
+      "path": "active",
+      "value": true
+    },
+    {
+      "op": "replace",
+      "path": "displayName",
+      "value": "DIRKTXOAYZZM"
+    },
+    {
+      "op": "replace",
+      "path": "title",
+      "value": "UNBYYSYMKXGZ"
+    },
+    {
+      "op": "replace",
+      "path": "emails[type eq \"work\"].value",
+      "value": "kiley@harveyjacobi.us"
+    },
+    {
+      "op": "replace",
+      "path": "emails[type eq \"work\"].primary",
+      "value": true
+    },
+    {
+      "op": "replace",
+      "path": "preferredLanguage",
+      "value": "dv"
+    },
+    {
+      "op": "replace",
+      "path": "name.givenName",
+      "value": "Rahsaan"
+    },
+    {
+      "op": "replace",
+      "path": "name.familyName",
+      "value": "Warren"
+    },
+    {
+      "op": "replace",
+      "path": "name.formatted",
+      "value": "Gage"
+    },
+    {
+      "op": "replace",
+      "path": "name.middleName",
+      "value": "Chester"
+    },
+    {
+      "op": "replace",
+      "path": "name.honorificPrefix",
+      "value": "Miracle"
+    },
+    {
+      "op": "replace",
+      "path": "name.honorificSuffix",
+      "value": "Mya"
+    },
+    {
+      "op": "replace",
+      "path": "addresses[type eq \"work\"].formatted",
+      "value": "HROZMXTEBJYJ"
+    },
+    {
+      "op": "replace",
+      "path": "addresses[type eq \"work\"].streetAddress",
+      "value": "68276 Orpha Village"
+    },
+    {
+      "op": "replace",
+      "path": "addresses[type eq \"work\"].locality",
+      "value": "FQVYYVPHTSKW"
+    },
+    {
+      "op": "replace",
+      "path": "addresses[type eq \"work\"].region",
+      "value": "KNIDQTRIHHFW"
+    },
+    {
+      "op": "replace",
+      "path": "addresses[type eq \"work\"].postalCode",
+      "value": "gh62 1ob"
+    },
+    {
+      "op": "replace",
+      "path": "addresses[type eq \"work\"].primary",
+      "value": true
+    },
+    {
+      "op": "replace",
+      "path": "addresses[type eq \"work\"].country",
+      "value": "Colombia"
+    },
+    {
+      "op": "replace",
+      "path": "phoneNumbers[type eq \"work\"].value",
+      "value": "15-338-2012"
+    },
+    {
+      "op": "replace",
+      "path": "phoneNumbers[type eq \"work\"].primary",
+      "value": true
+    },
+    {
+      "op": "replace",
+      "path": "phoneNumbers[type eq \"mobile\"].value",
+      "value": "15-338-2012"
+    },
+    {
+      "op": "replace",
+      "path": "phoneNumbers[type eq \"fax\"].value",
+      "value": "15-338-2012"
+    },
+    {
+      "op": "replace",
+      "path": "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:employeeNumber",
+      "value": "AJKHTFRTUEOL"
+    },
+    {
+      "op": "replace",
+      "path": "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:department",
+      "value": "HEPFZZRYERLO"
+    },
+    {
+      "op": "replace",
+      "path": "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:costCenter",
+      "value": "USAQIHFGZAON"
+    },
+    {
+      "op": "replace",
+      "path": "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:organization",
+      "value": "WVWXWZZPTZXO"
+    },
+    {
+      "op": "replace",
+      "path": "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User:division",
+      "value": "ETIPYPNCXQMY"
+    },
+    {
+      "op": "replace",
+      "path": "roles[primary eq \"True\"].display",
+      "value": "NONTGTTVNUAY"
+    },
+    {
+      "op": "replace",
+      "path": "roles[primary eq \"True\"].value",
+      "value": "XKNOACDIOLQS"
+    },
+    {
+      "op": "replace",
+      "path": "roles[primary eq \"True\"].type",
+      "value": "LBTRJUINCINV"
+    },
+    {
+      "op": "replace",
+      "path": "userType",
+      "value": "FXVZTALTOKRQ"
+    },
+    {
+      "op": "replace",
+      "path": "nickName",
+      "value": "GFOKYVCXKLBE"
+    },
+    {
+      "op": "replace",
+      "path": "locale",
+      "value": "PQPJBPUPAZYH"
+    },
+    {
+      "op": "replace",
+      "path": "timezone",
+      "value": "Africa/Addis_Ababa"
+    },
+    {
+      "op": "replace",
+      "path": "profileUrl",
+      "value": "ILOBIMRVDJVN"
+    }
+  ],
+  "schemas": [
+    "urn:ietf:params:scim:api:messages:2.0:PatchOp"
+  ]
+}

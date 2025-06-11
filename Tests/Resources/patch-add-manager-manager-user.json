@@ -1,0 +1,28 @@
+{
+  "active": true,
+  "displayName": "Manager User",
+  "emails": [
+    {
+      "type": "work",
+      "value": "manager@company.com",
+      "primary": true
+    }
+  ],
+  "name": {
+    "givenName": "John",
+    "familyName": "Manager",
+    "formatted": "John Manager"
+  },
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+  ],
+  "title": "Senior Manager",
+  "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
+    "employeeNumber": "MGR001",
+    "department": "Management",
+    "organization": "OBNBAWJBNWZI"
+  },
+  "userName": "john.manager@company.com",
+  "userType": "Manager"
+}

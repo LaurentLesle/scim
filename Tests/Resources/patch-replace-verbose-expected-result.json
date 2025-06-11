@@ -1,0 +1,73 @@
+{
+  "active": true,
+  "addresses": [
+    {
+      "formatted": "HROZMXTEBJYJ",
+      "streetAddress": "68276 Orpha Village",
+      "locality": "FQVYYVPHTSKW",
+      "region": "KNIDQTRIHHFW",
+      "postalCode": "gh62 1ob",
+      "country": "Colombia",
+      "type": "work",
+      "primary": true
+    }
+  ],
+  "displayName": "DIRKTXOAYZZM",
+  "emails": [
+    {
+      "value": "kiley@harveyjacobi.us",
+      "type": "work",
+      "primary": true
+    }
+  ],
+  "locale": "PQPJBPUPAZYH",
+  "name": {
+    "formatted": "Gage",
+    "familyName": "Warren",
+    "givenName": "Rahsaan",
+    "middleName": "Chester",
+    "honorificPrefix": "Miracle",
+    "honorificSuffix": "Mya"
+  },
+  "nickName": "GFOKYVCXKLBE",
+  "phoneNumbers": [
+    {
+      "value": "15-338-2012",
+      "type": "work",
+      "primary": true
+    },
+    {
+      "value": "15-338-2012",
+      "type": "mobile"
+    },
+    {
+      "value": "15-338-2012",
+      "type": "fax"
+    }
+  ],
+  "preferredLanguage": "dv",
+  "profileUrl": "ILOBIMRVDJVN",
+  "roles": [
+    {
+      "value": "XKNOACDIOLQS",
+      "display": "NONTGTTVNUAY",
+      "type": "LBTRJUINCINV",
+      "primary": "True"
+    }
+  ],
+  "schemas": [
+    "urn:ietf:params:scim:schemas:core:2.0:User",
+    "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User"
+  ],
+  "timezone": "Africa/Addis_Ababa",
+  "title": "UNBYYSYMKXGZ",
+  "urn:ietf:params:scim:schemas:extension:enterprise:2.0:User": {
+    "employeeNumber": "AJKHTFRTUEOL",
+    "department": "HEPFZZRYERLO",
+    "costCenter": "USAQIHFGZAON",
+    "organization": "WVWXWZZPTZXO",
+    "division": "ETIPYPNCXQMY"
+  },
+  "userName": "virgil_pouros@smith.info",
+  "userType": "FXVZTALTOKRQ"
+}

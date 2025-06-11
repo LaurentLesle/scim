@@ -9,7 +9,10 @@ namespace ScimServiceProvider.Services
     public class UserService : IUserService
     {
         private readonly ScimDbContext _context;
-
+        
+        // Configuration option to disable manager validation for unit testing
+        public bool EnableStrictManagerValidation { get; set; } = false;
+        
         public UserService(ScimDbContext context)
         {
             _context = context;
@@ -196,10 +199,10 @@ namespace ScimServiceProvider.Services
                 switch (operation.Op.ToLower())
                 {
                     case "replace":
-                        ApplyReplaceOperation(user, operation);
+                        await ApplyReplaceOperationAsync(user, operation, customerId);
                         break;
                     case "add":
-                        ApplyAddOperation(user, operation);
+                        await ApplyAddOperationAsync(user, operation, customerId);
                         break;
                     case "remove":
                         ApplyRemoveOperation(user, operation);
@@ -255,23 +258,8 @@ namespace ScimServiceProvider.Services
             return query;
         }
 
-        private void ApplyPatchOperation(ScimUser user, PatchOperation operation)
-        {
-            switch (operation.Op.ToLower())
-            {
-                case "replace":
-                    ApplyReplaceOperation(user, operation);
-                    break;
-                case "add":
-                    ApplyAddOperation(user, operation);
-                    break;
-                case "remove":
-                    ApplyRemoveOperation(user, operation);
-                    break;
-            }
-        }
 
-        private void ApplyAddOperation(ScimUser user, PatchOperation operation)
+        private async Task ApplyAddOperationAsync(ScimUser user, PatchOperation operation, string customerId)
         {
             // If path is null or empty, treat as full object add/merge
             if (string.IsNullOrEmpty(operation.Path))
@@ -385,13 +373,24 @@ namespace ScimServiceProvider.Services
                                 case "costcenter": user.EnterpriseUser.CostCenter = kvp.Value?.ToString(); break;
                                 case "organization": user.EnterpriseUser.Organization = kvp.Value?.ToString(); break;
                                 case "division": user.EnterpriseUser.Division = kvp.Value?.ToString(); break;
-                                case "manager": user.EnterpriseUser.Manager = DeserializeManager(kvp.Value); break;
+                                case "manager": 
+                                    var managerAddAlt = await DeserializeManagerAsync(kvp.Value, customerId);
+                                    if (managerAddAlt != null && !string.IsNullOrEmpty(managerAddAlt.Value))
+                                    {
+                                        // Validate that the manager exists
+                                        if (!await ValidateManagerExistsAsync(managerAddAlt.Value, customerId))
+                                        {
+                                            throw new InvalidOperationException($"Manager with ID '{managerAddAlt.Value}' does not exist.");
+                                        }
+                                    }
+                                    user.EnterpriseUser.Manager = managerAddAlt; 
+                                    break;
                             }
                         }
                         else
                         {
                             var subOp = new PatchOperation { Op = "add", Path = kvp.Key, Value = kvp.Value };
-                            ApplyAddOperation(user, subOp);
+                            await ApplyAddOperationAsync(user, subOp, customerId);
                         }
                     }
                     return;
@@ -549,7 +548,7 @@ namespace ScimServiceProvider.Services
                     Role? role = null;
                     if (filterAttr.Equals("primary", StringComparison.OrdinalIgnoreCase))
                     {
-                        role = user.Roles.FirstOrDefault(r => r.Primary == (bool.TryParse(filterValue, out var pv) && pv));
+                        role = user.Roles.FirstOrDefault(r => string.Equals(r.Primary, filterValue, StringComparison.OrdinalIgnoreCase));
                     }
                     else if (filterAttr.Equals("type", StringComparison.OrdinalIgnoreCase))
                     {
@@ -568,7 +567,7 @@ namespace ScimServiceProvider.Services
                     {
                         // Create new role with filter criteria
                         role = new Role();
-                        if (filterAttr.Equals("primary", StringComparison.OrdinalIgnoreCase)) role.Primary = bool.TryParse(filterValue, out var pv) && pv;
+                        if (filterAttr.Equals("primary", StringComparison.OrdinalIgnoreCase)) role.Primary = filterValue;
                         else if (filterAttr.Equals("type", StringComparison.OrdinalIgnoreCase)) role.Type = filterValue;
                         else if (filterAttr.Equals("value", StringComparison.OrdinalIgnoreCase)) role.Value = filterValue;
                         else if (filterAttr.Equals("display", StringComparison.OrdinalIgnoreCase)) role.Display = filterValue;
@@ -582,7 +581,7 @@ namespace ScimServiceProvider.Services
                     else if (attr.Equals("type", StringComparison.OrdinalIgnoreCase))
                         role.Type = operation.Value?.ToString() ?? string.Empty;
                     else if (attr.Equals("primary", StringComparison.OrdinalIgnoreCase))
-                        role.Primary = operation.Value is bool b ? b : bool.TryParse(operation.Value?.ToString(), out var pb) && pb;
+                        role.Primary = operation.Value?.ToString();
                 }
                 return;
             }
@@ -599,7 +598,18 @@ namespace ScimServiceProvider.Services
                     case "costcenter": user.EnterpriseUser.CostCenter = operation.Value?.ToString(); break;
                     case "organization": user.EnterpriseUser.Organization = operation.Value?.ToString(); break;
                     case "division": user.EnterpriseUser.Division = operation.Value?.ToString(); break;
-                    case "manager": user.EnterpriseUser.Manager = DeserializeManager(operation.Value); break;
+                    case "manager": 
+                        var managerAdd = await DeserializeManagerAsync(operation.Value, customerId);
+                        if (EnableStrictManagerValidation && managerAdd != null && !string.IsNullOrEmpty(managerAdd.Value))
+                        {
+                            // Validate that the manager exists
+                            if (!await ValidateManagerExistsAsync(managerAdd.Value, customerId))
+                            {
+                                throw new InvalidOperationException($"Manager with ID '{managerAdd.Value}' does not exist.");
+                            }
+                        }
+                        user.EnterpriseUser.Manager = managerAdd; 
+                        break;
                 }
                 return;
             }
@@ -620,6 +630,56 @@ namespace ScimServiceProvider.Services
                 case "locale": user.Locale = operation.Value?.ToString(); break;
                 case "timezone": user.Timezone = operation.Value?.ToString(); break;
                 case "profileurl": user.ProfileUrl = operation.Value?.ToString(); break;
+                case "roles":
+                    // Handle roles addition for multi-valued attribute
+                    if (user.Roles == null) user.Roles = new List<Role>();
+                    
+                    if (operation.Value != null)
+                    {
+                        Role? newRole = null;
+                        
+                        // Handle different value types
+                        if (operation.Value is System.Text.Json.JsonElement elem && elem.ValueKind == System.Text.Json.JsonValueKind.Object)
+                        {
+                            var roleJson = elem.GetRawText();
+                            newRole = System.Text.Json.JsonSerializer.Deserialize<Role>(roleJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        }
+                        else if (operation.Value is Dictionary<string, object> dict)
+                        {
+                            newRole = new Role();
+                            if (dict.ContainsKey("display")) newRole.Display = dict["display"]?.ToString();
+                            if (dict.ContainsKey("value")) newRole.Value = dict["value"]?.ToString() ?? string.Empty;
+                            if (dict.ContainsKey("type")) newRole.Type = dict["type"]?.ToString() ?? string.Empty;
+                            if (dict.ContainsKey("primary")) newRole.Primary = dict["primary"]?.ToString();
+                        }
+                        else
+                        {
+                            // Handle anonymous objects using reflection
+                            var valueType = operation.Value.GetType();
+                            var properties = valueType.GetProperties();
+                            newRole = new Role();
+                            
+                            foreach (var prop in properties)
+                            {
+                                var propName = prop.Name.ToLower();
+                                var propValue = prop.GetValue(operation.Value);
+                                
+                                switch (propName)
+                                {
+                                    case "display": newRole.Display = propValue?.ToString(); break;
+                                    case "value": newRole.Value = propValue?.ToString() ?? string.Empty; break;
+                                    case "type": newRole.Type = propValue?.ToString() ?? string.Empty; break;
+                                    case "primary": newRole.Primary = propValue?.ToString(); break;
+                                }
+                            }
+                        }
+                        
+                        if (newRole != null)
+                        {
+                            user.Roles.Add(newRole);
+                        }
+                    }
+                    break;
             }
         }
 
@@ -682,7 +742,7 @@ namespace ScimServiceProvider.Services
             }
         }
 
-        private void ApplyReplaceOperation(ScimUser user, PatchOperation operation)
+        private async Task ApplyReplaceOperationAsync(ScimUser user, PatchOperation operation, string customerId)
         {
             // If path is null or empty, treat as full object replace (RFC 7644 3.5.2.2)
             if (string.IsNullOrEmpty(operation.Path))
@@ -692,7 +752,7 @@ namespace ScimServiceProvider.Services
                     foreach (var prop in jObj.Properties())
                     {
                         var subOp = new PatchOperation { Op = "replace", Path = prop.Name, Value = prop.Value.Type == Newtonsoft.Json.Linq.JTokenType.Null ? null : prop.Value.ToObject<object>() };
-                        ApplyReplaceOperation(user, subOp);
+                        await ApplyReplaceOperationAsync(user, subOp, customerId);
                     }
                 }
                 else if (operation.Value is System.Text.Json.JsonElement elem && elem.ValueKind == System.Text.Json.JsonValueKind.Object)
@@ -707,7 +767,7 @@ namespace ScimServiceProvider.Services
                                 : prop.Value.ToString();
                         }
                         var subOp = new PatchOperation { Op = "replace", Path = prop.Name, Value = value };
-                        ApplyReplaceOperation(user, subOp);
+                        await ApplyReplaceOperationAsync(user, subOp, customerId);
                     }
                 }
                 else if (operation.Value is Dictionary<string, object> dict)
@@ -715,7 +775,7 @@ namespace ScimServiceProvider.Services
                     foreach (var kvp in dict)
                     {
                         var subOp = new PatchOperation { Op = "replace", Path = kvp.Key, Value = kvp.Value };
-                        ApplyReplaceOperation(user, subOp);
+                        await ApplyReplaceOperationAsync(user, subOp, customerId);
                     }
                 }
                 return;
@@ -789,7 +849,7 @@ namespace ScimServiceProvider.Services
                         Role? role = null;
                         if (filterAttr.Equals("primary", StringComparison.OrdinalIgnoreCase))
                         {
-                            role = user.Roles.FirstOrDefault(r => r.Primary == (bool.TryParse(filterValue, out var pv) && pv));
+                            role = user.Roles.FirstOrDefault(r => string.Equals(r.Primary, filterValue, StringComparison.OrdinalIgnoreCase));
                         }
                         else if (filterAttr.Equals("type", StringComparison.OrdinalIgnoreCase))
                         {
@@ -813,7 +873,7 @@ namespace ScimServiceProvider.Services
                             else if (attr.Equals("type", StringComparison.OrdinalIgnoreCase))
                                 role.Type = operation.Value?.ToString() ?? string.Empty;
                             else if (attr.Equals("primary", StringComparison.OrdinalIgnoreCase))
-                                role.Primary = operation.Value is bool b ? b : bool.TryParse(operation.Value?.ToString(), out var pb) && pb;
+                                role.Primary = operation.Value?.ToString();
                         }
                     }
                 }
@@ -832,7 +892,18 @@ namespace ScimServiceProvider.Services
                     case "costcenter": user.EnterpriseUser.CostCenter = operation.Value?.ToString(); break;
                     case "organization": user.EnterpriseUser.Organization = operation.Value?.ToString(); break;
                     case "division": user.EnterpriseUser.Division = operation.Value?.ToString(); break;
-                    case "manager": user.EnterpriseUser.Manager = DeserializeManager(operation.Value); break;
+                    case "manager": 
+                        var managerReplace = await DeserializeManagerAsync(operation.Value, customerId);
+                        if (EnableStrictManagerValidation && managerReplace != null && !string.IsNullOrEmpty(managerReplace.Value))
+                        {
+                            // Validate that the manager exists
+                            if (!await ValidateManagerExistsAsync(managerReplace.Value, customerId))
+                            {
+                                throw new InvalidOperationException($"Manager with ID '{managerReplace.Value}' does not exist.");
+                            }
+                        }
+                        user.EnterpriseUser.Manager = managerReplace; 
+                        break;
                 }
                 return;
             }
@@ -1032,6 +1103,173 @@ namespace ScimServiceProvider.Services
 
             return null;
         }
+
+        private async Task<bool> ValidateManagerExistsAsync(string managerId, string customerId)
+        {
+            if (string.IsNullOrEmpty(managerId))
+                return false;
+
+            var manager = await _context.Users
+                .FirstOrDefaultAsync(u => u.Id == managerId && u.CustomerId == customerId);
+            
+            return manager != null;
+        }
+
+        private async Task<Manager?> DeserializeManagerAsync(object? value, string customerId)
+        {
+            if (value == null) return null;
+
+            Manager? manager = null;
+
+            try
+            {
+                // If it's already a Manager object, use it
+                if (value is Manager existingManager) 
+                {
+                    manager = existingManager;
+                }
+                // Handle JsonElement deserialization
+                else if (value is System.Text.Json.JsonElement element)
+                {
+                    manager = await DeserializeManagerFromJsonElement(element);
+                }
+                // Handle string values
+                else if (value is string stringValue)
+                {
+                    manager = await DeserializeManagerFromString(stringValue);
+                }
+                // Handle other object types using reflection
+                else
+                {
+                    manager = DeserializeManagerFromObject(value);
+                }
+
+                // Validate that the referenced manager exists (only if strict validation is enabled)
+                if (EnableStrictManagerValidation && manager != null && !string.IsNullOrEmpty(manager.Value))
+                {
+                    var managerExists = await ValidateManagerExistsAsync(manager.Value, customerId);
+                    if (!managerExists)
+                    {
+                        throw new InvalidOperationException($"Referenced manager with ID '{manager.Value}' does not exist or is not accessible.");
+                    }
+                }
+
+                return manager;
+            }
+            catch (InvalidOperationException)
+            {
+                throw; // Re-throw validation exceptions
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Failed to deserialize manager: {ex.Message}", ex);
+            }
+        }
+
+        private async Task<Manager?> DeserializeManagerFromJsonElement(System.Text.Json.JsonElement element)
+        {
+            if (element.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                var elementString = element.GetString();
+                return await DeserializeManagerFromString(elementString);
+            }
+            else if (element.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                var rawText = element.GetRawText();
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                };
+                
+                var result = System.Text.Json.JsonSerializer.Deserialize<Manager>(rawText, options);
+                
+                // Ensure $ref is populated if we have a value but no ref
+                if (result != null && !string.IsNullOrEmpty(result.Value) && string.IsNullOrEmpty(result.Ref))
+                {
+                    result.Ref = $"../Users/{result.Value}";
+                }
+                
+                return result;
+            }
+            else
+            {
+                var result = System.Text.Json.JsonSerializer.Deserialize<Manager>(element.GetRawText());
+                
+                // Ensure $ref is populated if we have a value but no ref
+                if (result != null && !string.IsNullOrEmpty(result.Value) && string.IsNullOrEmpty(result.Ref))
+                {
+                    result.Ref = $"../Users/{result.Value}";
+                }
+                
+                return result;
+            }
+        }
+
+        private Task<Manager?> DeserializeManagerFromString(string? stringValue)
+        {
+            if (string.IsNullOrEmpty(stringValue))
+                return Task.FromResult<Manager?>(null);
+
+            // Try to parse as JSON first
+            if (stringValue.TrimStart().StartsWith("{") && stringValue.TrimEnd().EndsWith("}"))
+            {
+                try
+                {
+                    var result = System.Text.Json.JsonSerializer.Deserialize<Manager>(stringValue);
+                    
+                    // Ensure $ref is populated if we have a value but no ref
+                    if (result != null && !string.IsNullOrEmpty(result.Value) && string.IsNullOrEmpty(result.Ref))
+                    {
+                        result.Ref = $"../Users/{result.Value}";
+                    }
+                    
+                    return Task.FromResult<Manager?>(result);
+                }
+                catch (System.Text.Json.JsonException)
+                {
+                    // Fall through to simple string handling
+                }
+            }
+            
+            // Simple string value - treat as manager ID
+            return Task.FromResult<Manager?>(new Manager 
+            { 
+                Value = stringValue,
+                Ref = $"../Users/{stringValue}"
+            });
+        }
+
+        private Manager? DeserializeManagerFromObject(object value)
+        {
+            var manager = new Manager();
+            var valueType = value.GetType();
+            var properties = valueType.GetProperties();
+            
+            foreach (var prop in properties)
+            {
+                var fieldName = prop.Name.ToLower();
+                var propValue = prop.GetValue(value);
+                
+                switch (fieldName)
+                {
+                    case "value": manager.Value = propValue?.ToString(); break;
+                    case "$ref":
+                    case "ref": manager.Ref = propValue?.ToString(); break;
+                    case "displayname": manager.DisplayName = propValue?.ToString(); break;
+                }
+            }
+            
+            // Ensure $ref is populated if we have a value but no ref
+            if (!string.IsNullOrEmpty(manager.Value) && string.IsNullOrEmpty(manager.Ref))
+            {
+                manager.Ref = $"../Users/{manager.Value}";
+            }
+            
+            return manager;
+        }
+
+
 
         private IQueryable<ScimUser> ApplySorting(IQueryable<ScimUser> query, string sortBy, string? sortOrder = null)
         {

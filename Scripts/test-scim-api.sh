@@ -118,8 +118,7 @@ GROUP_RESPONSE=$(curl -s -k -X POST "$BASE_URL/scim/v2/Groups" \
     "members": [
       {
         "value": "'$USER_ID'",
-        "display": "John Doe",
-        "type": "User"
+        "display": "John Doe"
       }
     ]
   }')
