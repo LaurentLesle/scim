@@ -32,8 +32,11 @@ DO:
 - Use in-memory database for unit tests and proper test isolation between test methods.
 - When temp files are created, make sure you use a naming convention that excludes them  from the source control.
 - When refactoring code, folder structure or test structure, ensure no code or test is lost, except for  those that are explicitly marked as deprecated or obsolete.
+- Follow MVVM pattern for the project UI structure.
 
 DONT:
 - Do not store script test in the root directory, but in the `Scripts` directory.
 - Move existing scripts tests to the `Scripts` directory as needed.
 - Do not use any other port than 5000 for the SCIM server.
+- Do not include HTML into controller code.
+- Do not include javascript inside the HTLM but reference an external javascript file.

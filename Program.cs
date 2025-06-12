@@ -87,6 +87,9 @@ if (app.Environment.IsDevelopment())
 // Enable HTTP request logging in all environments for SCIM debugging
 app.UseHttpLogging();
 
+// Add static files support for admin UI
+app.UseStaticFiles();
+
 // Add request logging middleware to capture all requests
 app.UseRequestLogging();
 
