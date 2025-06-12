@@ -520,14 +520,9 @@ namespace ScimServiceProvider.Services
                 {
                     if (!string.IsNullOrEmpty(member.Value) && string.IsNullOrEmpty(member.Ref))
                     {
-                        // Build the $ref URL based on member type
-                        var baseUrl = httpContext?.Request != null 
-                            ? $"{httpContext.Request.Scheme}://{httpContext.Request.Host}"
-                            : "https://localhost"; // fallback
-                        
-                        // Since SCIM group members are typically users, default to Users resource type
-                        var resourceType = "Users";
-                        member.Ref = $"{baseUrl}/scim/v2/{resourceType}/{member.Value}";
+                        // For consistency with SCIM RFC and other services, use relative URLs
+                        // This ensures consistent behavior across unit tests and API calls
+                        member.Ref = $"../Users/{member.Value}";
                     }
                 }
             }

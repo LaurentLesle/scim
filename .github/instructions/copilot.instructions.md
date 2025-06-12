@@ -31,6 +31,7 @@ DO:
 - Always validate Enterprise User Extension attributes comply with RFC 7643 requirements.
 - Use in-memory database for unit tests and proper test isolation between test methods.
 - When temp files are created, make sure you use a naming convention that excludes them  from the source control.
+- When refactoring code, folder structure or test structure, ensure no code or test is lost, except for  those that are explicitly marked as deprecated or obsolete.
 
 DONT:
 - Do not store script test in the root directory, but in the `Scripts` directory.

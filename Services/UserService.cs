@@ -252,6 +252,16 @@ namespace ScimServiceProvider.Services
                 var userName = userNameMatch.Groups[1].Value;
                 // Case-insensitive comparison for SCIM compliance
                 query = query.Where(u => u.UserName.ToLower() == userName.ToLower());
+                return query;
+            }
+
+            // Filter by active status: active eq true/false
+            var activeMatch = Regex.Match(filter, @"active\s+eq\s+(true|false)", RegexOptions.IgnoreCase);
+            if (activeMatch.Success)
+            {
+                var activeValue = bool.Parse(activeMatch.Groups[1].Value.ToLower());
+                query = query.Where(u => u.Active == activeValue);
+                return query;
             }
 
             // Add more filter implementations as needed
@@ -636,28 +646,59 @@ namespace ScimServiceProvider.Services
                     
                     if (operation.Value != null)
                     {
-                        Role? newRole = null;
-                        
                         // Handle different value types
                         if (operation.Value is System.Text.Json.JsonElement elem && elem.ValueKind == System.Text.Json.JsonValueKind.Object)
                         {
                             var roleJson = elem.GetRawText();
-                            newRole = System.Text.Json.JsonSerializer.Deserialize<Role>(roleJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                            var newRole = System.Text.Json.JsonSerializer.Deserialize<Role>(roleJson, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                            if (newRole != null) user.Roles.Add(newRole);
+                        }
+                        else if (operation.Value is string jsonString)
+                        {
+                            // Handle JSON string - could be single object or array
+                            try
+                            {
+                                using var document = JsonDocument.Parse(jsonString);
+                                if (document.RootElement.ValueKind == JsonValueKind.Array)
+                                {
+                                    // Handle array of roles
+                                    var roles = JsonSerializer.Deserialize<Role[]>(jsonString, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                                    if (roles != null)
+                                    {
+                                        foreach (var role in roles)
+                                        {
+                                            if (role != null) user.Roles.Add(role);
+                                        }
+                                    }
+                                }
+                                else if (document.RootElement.ValueKind == JsonValueKind.Object)
+                                {
+                                    // Handle single role object
+                                    var newRole = JsonSerializer.Deserialize<Role>(jsonString, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                                    if (newRole != null) user.Roles.Add(newRole);
+                                }
+                            }
+                            catch (JsonException)
+                            {
+                                // If JSON parsing fails, treat as simple string value
+                                user.Roles.Add(new Role { Value = jsonString });
+                            }
                         }
                         else if (operation.Value is Dictionary<string, object> dict)
                         {
-                            newRole = new Role();
+                            var newRole = new Role();
                             if (dict.ContainsKey("display")) newRole.Display = dict["display"]?.ToString();
                             if (dict.ContainsKey("value")) newRole.Value = dict["value"]?.ToString() ?? string.Empty;
                             if (dict.ContainsKey("type")) newRole.Type = dict["type"]?.ToString() ?? string.Empty;
                             if (dict.ContainsKey("primary")) newRole.Primary = dict["primary"]?.ToString();
+                            user.Roles.Add(newRole);
                         }
                         else
                         {
                             // Handle anonymous objects using reflection
                             var valueType = operation.Value.GetType();
                             var properties = valueType.GetProperties();
-                            newRole = new Role();
+                            var newRole = new Role();
                             
                             foreach (var prop in properties)
                             {
@@ -672,10 +713,7 @@ namespace ScimServiceProvider.Services
                                     case "primary": newRole.Primary = propValue?.ToString(); break;
                                 }
                             }
-                        }
-                        
-                        if (newRole != null)
-                        {
+                            
                             user.Roles.Add(newRole);
                         }
                     }

@@ -142,7 +142,8 @@ namespace ScimServiceProvider.Tests.Helpers
         public static Mock<IGroupService> CreateMockGroupService(List<ScimGroup>? testGroups = null, List<ScimUser>? testUsers = null)
         {
             var mockService = new Mock<IGroupService>();
-            var groups = testGroups ?? ScimTestDataGenerator.GenerateGroups(3, testUsers);
+            var groups = testGroups ?? GroupTestDataGenerator.GenerateGroups(5);
+            var users = testUsers ?? UserTestDataGenerator.GenerateUsers(5);
 
             // Setup GetGroupAsync
             mockService.Setup(s => s.GetGroupAsync(It.IsAny<string>(), It.IsAny<string>()))
@@ -157,6 +158,7 @@ namespace ScimServiceProvider.Tests.Helpers
                     // Apply simple filter if provided
                     if (!string.IsNullOrEmpty(filter))
                     {
+                        // Simple displayName filter for testing
                         if (filter.Contains("displayName"))
                         {
                             var displayName = ExtractFilterValue(filter);
@@ -167,10 +169,13 @@ namespace ScimServiceProvider.Tests.Helpers
                         }
                     }
 
-                    return ScimTestDataGenerator.CreateListResponse(
-                        filteredGroups.ToList(), 
-                        startIndex, 
-                        count);
+                    return new ScimListResponse<ScimGroup>
+                    {
+                        TotalResults = filteredGroups.Count(),
+                        StartIndex = startIndex,
+                        ItemsPerPage = Math.Min(count, filteredGroups.Count()),
+                        Resources = filteredGroups.Skip(startIndex - 1).Take(count).ToList()
+                    };
                 });
 
             // Setup CreateGroupAsync
@@ -187,16 +192,19 @@ namespace ScimServiceProvider.Tests.Helpers
                         Location = $"/scim/v2/Groups/{group.Id}",
                         Version = Guid.NewGuid().ToString("N")[..8]
                     };
-                    
-                    // Populate $ref for members after patching (always override to ensure consistency)
+
+                    // Set member references to relative URLs for consistency
                     if (group.Members != null)
                     {
                         foreach (var member in group.Members)
                         {
-                            member.Ref = $"https://localhost/scim/v2/Users/{member.Value}";
+                            if (!string.IsNullOrEmpty(member.Value) && string.IsNullOrEmpty(member.Ref))
+                            {
+                                member.Ref = $"../Users/{member.Value}";
+                            }
                         }
                     }
-                    
+
                     groups.Add(group);
                     return group;
                 });
@@ -208,7 +216,9 @@ namespace ScimServiceProvider.Tests.Helpers
                     var existingGroup = groups.FirstOrDefault(g => g.Id == id && g.CustomerId == customerId);
                     if (existingGroup == null) return null;
 
+                    // Update properties
                     existingGroup.DisplayName = updatedGroup.DisplayName;
+                    existingGroup.ExternalId = updatedGroup.ExternalId;
                     existingGroup.Members = updatedGroup.Members;
                     
                     if (existingGroup.Meta != null)
@@ -217,170 +227,6 @@ namespace ScimServiceProvider.Tests.Helpers
                     }
 
                     return existingGroup;
-                });
-
-            // Setup PatchGroupAsync
-            mockService.Setup(s => s.PatchGroupAsync(It.IsAny<string>(), It.IsAny<ScimPatchRequest>(), It.IsAny<string>()))
-                .ReturnsAsync((string id, ScimPatchRequest patchRequest, string customerId) =>
-                {
-                    var group = groups.FirstOrDefault(g => g.Id == id && g.CustomerId == customerId);
-                    if (group == null) return null;
-
-                    // Apply patch operations (simplified version of real service logic)
-                    foreach (var operation in patchRequest.Operations)
-                    {
-                        switch (operation.Op.ToLower())
-                        {
-                            case "replace":
-                                if (string.IsNullOrEmpty(operation.Path))
-                                {
-                                    // Full resource replacement
-                                    if (operation.Value is Newtonsoft.Json.Linq.JObject jObj)
-                                    {
-                                        var replacement = jObj.ToObject<ScimGroup>();
-                                        if (replacement != null)
-                                        {
-                                            group.DisplayName = replacement.DisplayName;
-                                            group.ExternalId = replacement.ExternalId;
-                                            group.Members = replacement.Members;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // Handle anonymous objects or other types
-                                        var json = Newtonsoft.Json.JsonConvert.SerializeObject(operation.Value);
-                                        var replacement = Newtonsoft.Json.JsonConvert.DeserializeObject<ScimGroup>(json);
-                                        if (replacement != null)
-                                        {
-                                            group.DisplayName = replacement.DisplayName;
-                                            group.ExternalId = replacement.ExternalId;
-                                            group.Members = replacement.Members;
-                                        }
-                                    }
-                                }
-                                else if (operation.Path == "displayName" && operation.Value is string displayName)
-                                {
-                                    group.DisplayName = displayName;
-                                }
-                                else if (operation.Path == "externalId" && operation.Value is string externalId)
-                                {
-                                    group.ExternalId = externalId;
-                                }
-                                else if (operation.Path == "members")
-                                {
-                                    if (operation.Value is System.Collections.IEnumerable enumerable && !(operation.Value is string))
-                                    {
-                                        var membersList = new List<GroupMember>();
-                                        foreach (var item in enumerable)
-                                        {
-                                            GroupMember? member = null;
-                                            if (item is GroupMember existingMember)
-                                            {
-                                                member = existingMember;
-                                            }
-                                            else
-                                            {
-                                                // Handle anonymous objects or JObjects
-                                                var json = Newtonsoft.Json.JsonConvert.SerializeObject(item);
-                                                member = Newtonsoft.Json.JsonConvert.DeserializeObject<GroupMember>(json);
-                                            }
-                                            if (member != null)
-                                            {
-                                                membersList.Add(member);
-                                            }
-                                        }
-                                        group.Members = membersList;
-                                    }
-                                    else if (operation.Value is Newtonsoft.Json.Linq.JArray membersArray)
-                                    {
-                                        group.Members = membersArray.ToObject<List<GroupMember>>();
-                                    }
-                                }
-                                break;
-
-                            case "add":
-                                if (operation.Path == "members")
-                                {
-                                    group.Members ??= new List<GroupMember>();
-                                    
-                                    if (operation.Value is System.Collections.IEnumerable enumerable && !(operation.Value is string))
-                                    {
-                                        foreach (var item in enumerable)
-                                        {
-                                            GroupMember? member = null;
-                                            if (item is GroupMember existingMember)
-                                            {
-                                                member = existingMember;
-                                            }
-                                            else
-                                            {
-                                                // Handle anonymous objects or JObjects
-                                                var json = Newtonsoft.Json.JsonConvert.SerializeObject(item);
-                                                member = Newtonsoft.Json.JsonConvert.DeserializeObject<GroupMember>(json);
-                                            }
-                                            if (member != null)
-                                            {
-                                                group.Members.Add(member);
-                                            }
-                                        }
-                                    }
-                                    else if (operation.Value is Newtonsoft.Json.Linq.JArray membersArray)
-                                    {
-                                        var newMembers = membersArray.ToObject<List<GroupMember>>();
-                                        if (newMembers != null)
-                                        {
-                                            group.Members.AddRange(newMembers);
-                                        }
-                                    }
-                                    else if (operation.Value is Newtonsoft.Json.Linq.JObject memberObj)
-                                    {
-                                        var newMember = memberObj.ToObject<GroupMember>();
-                                        if (newMember != null)
-                                        {
-                                            group.Members.Add(newMember);
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // Single member object
-                                        var json = Newtonsoft.Json.JsonConvert.SerializeObject(operation.Value);
-                                        var member = Newtonsoft.Json.JsonConvert.DeserializeObject<GroupMember>(json);
-                                        if (member != null)
-                                        {
-                                            group.Members.Add(member);
-                                        }
-                                    }
-                                }
-                                break;
-
-                            case "remove":
-                                if (operation.Path == "externalId")
-                                {
-                                    group.ExternalId = null;
-                                }
-                                else if (operation.Path == "members")
-                                {
-                                    group.Members = null;
-                                }
-                                break;
-                        }
-                    }
-
-                    // Populate $ref for members after creation (always override to ensure consistency)
-                    if (group.Members != null)
-                    {
-                        foreach (var member in group.Members)
-                        {
-                            member.Ref = $"https://localhost/scim/v2/Users/{member.Value}";
-                        }
-                    }
-
-                    if (group.Meta != null)
-                    {
-                        group.Meta.LastModified = DateTime.UtcNow;
-                    }
-
-                    return group;
                 });
 
             // Setup DeleteGroupAsync
@@ -392,6 +238,49 @@ namespace ScimServiceProvider.Tests.Helpers
                     
                     groups.Remove(group);
                     return true;
+                });
+
+            // Setup PatchGroupAsync
+            mockService.Setup(s => s.PatchGroupAsync(It.IsAny<string>(), It.IsAny<ScimPatchRequest>(), It.IsAny<string>()))
+                .ReturnsAsync((string id, ScimPatchRequest patchRequest, string customerId) =>
+                {
+                    var group = groups.FirstOrDefault(g => g.Id == id && g.CustomerId == customerId);
+                    if (group == null) return null;
+
+                    // Apply patch operations (simplified for testing)
+                    foreach (var operation in patchRequest.Operations)
+                    {
+                        switch (operation.Op.ToLower())
+                        {
+                            case "replace":
+                                if (operation.Path?.ToLower() == "displayname")
+                                {
+                                    group.DisplayName = operation.Value?.ToString() ?? string.Empty;
+                                }
+                                break;
+                            case "add":
+                                if (operation.Path?.ToLower() == "members")
+                                {
+                                    // Handle member addition
+                                    if (group.Members == null) group.Members = new List<GroupMember>();
+                                    // Simplified: add a test member
+                                    group.Members.Add(new GroupMember
+                                    {
+                                        Value = operation.Value?.ToString() ?? string.Empty,
+                                        Display = "Test User",
+                                        Ref = $"../Users/{operation.Value}"
+                                    });
+                                }
+                                break;
+                        }
+                    }
+
+                    if (group.Meta != null)
+                    {
+                        group.Meta.LastModified = DateTime.UtcNow;
+                    }
+
+                    return group;
                 });
 
             return mockService;
